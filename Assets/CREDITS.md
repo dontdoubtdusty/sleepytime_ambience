@@ -1,6 +1,6 @@
 # Asset credits
 
-All recordings are CC0 (public domain), downloaded from OpenGameArt.org.
+Where each recording came from (OpenGameArt.org). A personal record only; the app is never released.
 
 | File | Title | Author | Link |
 |---|---|---|---|
@@ -11,3 +11,10 @@ All recordings are CC0 (public domain), downloaded from OpenGameArt.org.
 | forest.mp3 | Forest Ambience | TinyWorlds | https://opengameart.org/content/forest-ambience |
 | clock.wav | ticking clock | bart | https://opengameart.org/content/ticking-clock |
 | thunder.ogg | rain long thunder | WuxiaScrub | https://opengameart.org/content/rain-long-thunder |
+| waves.ogg | Beach Ocean Waves (the ~12 s preview clip; the full FLAC clips cannot be decoded here) | jasinski | https://opengameart.org/content/beach-ocean-waves |
+| train.ogg | background rumble noise (recorded on a train trip) | gryc | https://opengameart.org/content/background-rumble-noise |
+| hum.mp3 | ambient spaceship hums | dklon | https://opengameart.org/content/ambient-spaceship-hums |
+| bubbles.wav | bubble sound effects (loop 1) | BMacZero | https://opengameart.org/content/bubble-sound-effects |
+| underwater.mp3 | Aquaria | cynicmusic | https://opengameart.org/content/aquaria |
+| purr.ogg | cat purr meow (sleepy purr loop) | Kerzoven | https://opengameart.org/content/cat-purr-meow |
+| Lora.ttf | Lora (UI font) | Cyreal | https://fonts.google.com/specimen/Lora |

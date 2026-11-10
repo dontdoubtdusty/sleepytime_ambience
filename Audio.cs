@@ -2,7 +2,7 @@ using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using Raylib_cs;
 
-public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock }
+public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock, Brown, Pink, Waves, Train, Hum, Bubbles, Underwater, Purr }
 
 /// <summary>
 /// Ambient audio mixer. Each layer plays a real (CC0) recording from the Assets folder,
@@ -12,7 +12,7 @@ public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock
 public unsafe class AmbientAudio : ISampleProvider, IDisposable
 {
     const int Rate = 48000;
-    const int LayerCount = 8;
+    const int LayerCount = 16;
 
     public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(Rate, 2);
 
@@ -36,6 +36,12 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
 
     double t;
 
+    /// <summary>How fast layer volumes ease to their targets (per sample). Lower = slower crossfades.</summary>
+    public volatile float Smooth = 0.00008f;
+
+    // noise generator state
+    float brown, pb0, pb1, pb2, pb3, pb4, pb5, pb6;
+
     // synth fallback state
     float rum1, rum2, hissLp;
     float crackEnv, crackLp;
@@ -56,6 +62,12 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         Load(Layer.Crickets, Path.Combine(dir, "crickets.mp3"), 0.11f, 0.15f);
         Load(Layer.Birds, Path.Combine(dir, "forest.mp3"), 0.12f, 1.5f);
         Load(Layer.Clock, Path.Combine(dir, "clock.wav"), 0f, 0f, peak: 0.35f);
+        Load(Layer.Waves, Path.Combine(dir, "waves.ogg"), 0.14f, 1.0f);
+        Load(Layer.Train, Path.Combine(dir, "train.ogg"), 0.12f, 1.5f);
+        Load(Layer.Hum, Path.Combine(dir, "hum.mp3"), 0.10f, 1.5f);
+        Load(Layer.Bubbles, Path.Combine(dir, "bubbles.wav"), 0.10f, 0.3f);
+        Load(Layer.Underwater, Path.Combine(dir, "underwater.mp3"), 0.10f, 2.0f);
+        Load(Layer.Purr, Path.Combine(dir, "purr.ogg"), 0.10f, 0.5f);
         LoadThunder(Path.Combine(dir, "thunder.ogg"));
 
         if (!openDevice) return;
@@ -91,6 +103,12 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     {
         var raw = Decode(path);
         if (raw == null) return;
+        Finish(layer, raw, rmsTarget, crossfadeSecs, peak);
+    }
+
+    // Turns decoded audio into a seamless, loudness-matched loop for a layer.
+    void Finish(Layer layer, float[] raw, float rmsTarget, float crossfadeSecs, float peak)
+    {
         int n = raw.Length;
         int x = Math.Min((int)(Rate * crossfadeSecs), n / 4);
         var loop = new float[n - x];
@@ -174,6 +192,8 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     }
     public long Reads, FramesRead; public double MaxReadMs;
 
+    static readonly Layer[] RecordedOnly = { Layer.Waves, Layer.Train, Layer.Hum, Layer.Bubbles, Layer.Underwater, Layer.Purr };
+
     float Loop(Layer l)
     {
         var b = loops[(int)l]!;
@@ -188,7 +208,7 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     {
         t += 1.0 / Rate;
         float w = (float)(rng.NextDouble() * 2 - 1);
-        for (int i = 0; i < LayerCount; i++) cur[i] += (Target[i] - cur[i]) * 0.00008f;
+        for (int i = 0; i < LayerCount; i++) cur[i] += (Target[i] - cur[i]) * Smooth;
 
         float o = 0;
 
@@ -251,6 +271,35 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         float vBird = cur[(int)Layer.Birds];
         if (loops[(int)Layer.Birds] != null) { if (vBird > 0.001f) o += Loop(Layer.Birds) * vBird; else Skip(Layer.Birds); }
         else SynthBirds(ref o, vBird);
+
+        // Layers that only ever play a recording
+        foreach (var l in RecordedOnly)
+        {
+            if (loops[(int)l] == null) continue;
+            float v = cur[(int)l];
+            if (v > 0.001f) o += Loop(l) * v; else Skip(l);
+        }
+
+        // Noise layers (synthesized: they are just noise)
+        float vBrown = cur[(int)Layer.Brown];
+        if (vBrown > 0.001f)
+        {
+            brown = (brown + 0.02f * w) / 1.02f;
+            o += brown * 5f * vBrown;
+        }
+        float vPink = cur[(int)Layer.Pink];
+        if (vPink > 0.001f)
+        {
+            pb0 = 0.99886f * pb0 + w * 0.0555179f;
+            pb1 = 0.99332f * pb1 + w * 0.0750759f;
+            pb2 = 0.96900f * pb2 + w * 0.1538520f;
+            pb3 = 0.86650f * pb3 + w * 0.3104856f;
+            pb4 = 0.55000f * pb4 + w * 0.5329522f;
+            pb5 = -0.7616f * pb5 - w * 0.0168980f;
+            float pink = pb0 + pb1 + pb2 + pb3 + pb4 + pb5 + pb6 + w * 0.5362f;
+            pb6 = w * 0.115926f;
+            o += pink * 0.12f * vPink;
+        }
 
         // Thunder one-shot
         if (thunder != null)

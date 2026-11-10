@@ -24,6 +24,13 @@ public static class Gfx
         Raylib.DrawCircleGradient(new Vector2(x, y), r, c, new Color((int)c.R, (int)c.G, (int)c.B, 0));
     }
 
+    /// <summary>Filled triangle that works whichever way the points are ordered.</summary>
+    public static void Tri(Vector2 a, Vector2 b, Vector2 c, Color col)
+    {
+        float cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+        if (cross > 0) Raylib.DrawTriangle(a, c, b, col); else Raylib.DrawTriangle(a, b, c, col);
+    }
+
     public static void Vignette(int strength = 150)
     {
         var dark = new Color(0, 0, 0, strength);
