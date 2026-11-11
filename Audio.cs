@@ -5,7 +5,7 @@ using Raylib_cs;
 public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock, Brown, Pink, Waves, Train, Hum, Bubbles, Underwater, Purr, Water }
 
 /// <summary>Short sounds a scene can play now and then (random sound events).</summary>
-public enum Evt { Chimes, Gull, Owl, Pop, Thunder }
+public enum Evt { Chimes, Gull, Owl, Pop, Thunder, Notify } // Notify: the soft kalimba for the update pop-up
 
 /// <summary>
 /// Ambient audio mixer. Each layer plays a real (CC0) recording from the Assets folder,
@@ -358,9 +358,9 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
 
     // ---- random sound events (owl, chimes, gull, log pop, distant thunder) ----
 
-    readonly float[]?[] clips = new float[5][];
-    static readonly float[] ClipGain = { 0.4f, 0.25f, 0.18f, 0.25f, 0 };
-    float[]? evBuf; int evPos, evStart, evEnd, evFade; float evGain;
+    readonly float[]?[] clips = new float[6][];
+    static readonly float[] ClipGain = { 0.4f, 0.25f, 0.18f, 0.25f, 0, 0.3f };
+    float[]? evBuf; int evPos, evStart, evEnd, evFade; float evGain; bool evAlways;
     volatile int evQueued = -1;
     /// <summary>Loudness of the random events relative to the loops (0 = off).</summary>
     public volatile float EventLevel = 1f;
@@ -379,6 +379,7 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         clips[(int)Evt.Gull] = Peaked(Decode(Path.Combine(dir, "gull.wav")));
         clips[(int)Evt.Owl] = MakeOwl();
         clips[(int)Evt.Pop] = MakePop();
+        clips[(int)Evt.Notify] = Peaked(Decode(Path.Combine(dir, "notify.wav")));
     }
 
     static float[]? Peaked(float[]? a)
@@ -434,6 +435,7 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         evStart = kind == (int)Evt.Chimes && b.Length > len ? rng.Next(0, b.Length - len) : 0;
         evEnd = evStart + len; evPos = evStart; evBuf = b; evGain = ClipGain[kind];
         evFade = kind == (int)Evt.Chimes ? Rate * 2 : kind == (int)Evt.Pop ? Rate / 500 : (int)(Rate * 0.05);
+        evAlways = kind == (int)Evt.Notify; // the update chime plays even with random events switched off
     }
 
     // Mixes the playing event into o.
@@ -443,7 +445,7 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         if (q >= 0) { evQueued = -1; StartEvent(q); }
         if (evBuf == null) return;
         float env = MathF.Min(1f, MathF.Min((evPos - evStart) / (float)evFade, (evEnd - evPos) / (float)evFade));
-        o += evBuf[evPos] * env * evGain * EventLevel;
+        o += evBuf[evPos] * env * evGain * (evAlways ? 1f : EventLevel);
         if (++evPos >= evEnd) evBuf = null;
     }
 

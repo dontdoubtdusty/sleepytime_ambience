@@ -20,6 +20,7 @@ Where each recording came from (mostly OpenGameArt.org), with thanks to the auth
 | Lora.ttf | Lora (UI font) | Cyreal | https://fonts.google.com/specimen/Lora |
 | chimes.ogg | Free Wind Chimes (loop 1, played as short excerpts) | see page | https://opengameart.org/node/97378 |
 | gull.wav | Solo Seagull Sound Effects (Seagull Ambient 1) | Rango Mango | https://opengameart.org/content/solo-seagull-sound-effects |
+| notify.wav | kalimba two notes (update pop-up) | railkill | https://opengameart.org/content/kalimba-two-notes |
 | water.wav | running water background noise | see page | https://opengameart.org/content/running-water-background-noise |
 
 Synthesized in code, no file: owl hoots and log pops (random sound events), brown and pink noise.

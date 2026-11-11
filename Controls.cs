@@ -2,7 +2,7 @@ using System.Numerics;
 using Raylib_cs;
 
 // The clickable control panel. It fades in when the mouse moves or a key is pressed and fades out
-// after a few seconds. It shows what the app is doing (via PanelModel) and reports clicks back
+// after a few seconds. Its last button opens the Esc menu (where Quit now lives). It shows what the app is doing (via PanelModel) and reports clicks back
 // through the model's actions; it keeps no app state of its own except which slider is being dragged.
 public class PanelModel
 {
@@ -23,7 +23,9 @@ public class PanelModel
     /// <summary>Right-click on a scene button: add or remove that scene from auto-rotate.</summary>
     public Action<int> ToggleRotation = _ => { };
     public Action HidePanel = () => { };
-    public Action ToggleLofi = () => { }, ToggleFullscreen = () => { }, Quit = () => { };
+    public Action ToggleLofi = () => { }, ToggleFullscreen = () => { }, OpenMenu = () => { }, OpenUpdates = () => { };
+    /// <summary>Shown in place of the hint line when a new version is ready; clicking it opens the Updates page.</summary>
+    public string UpdateNote = "";
     /// <summary>Called when a slider drag ends, so settings are saved once, not on every pixel.</summary>
     public Action Commit = () => { };
 }
@@ -93,8 +95,8 @@ public static class ControlPanel
         y += pad;
 
         // Option buttons, two per row
-        string[] labels = { m.TimerText, m.StopText, m.DimText, m.RotateText, m.ShuffleText, m.EventsText, m.DriftText, "Lo-fi: " + (m.LofiOn ? "on" : "off"), "Fullscreen", "Quit" };
-        Action[] actions = { m.CycleTimer, m.CycleStopAt, m.CycleDim, m.CycleRotate, m.ToggleShuffle, m.ToggleEvents, m.ToggleDrift, m.ToggleLofi, m.ToggleFullscreen, m.Quit };
+        string[] labels = { m.TimerText, m.StopText, m.DimText, m.RotateText, m.ShuffleText, m.EventsText, m.DriftText, "Lo-fi: " + (m.LofiOn ? "on" : "off"), "Fullscreen", "Menu (Esc)" };
+        Action[] actions = { m.CycleTimer, m.CycleStopAt, m.CycleDim, m.CycleRotate, m.ToggleShuffle, m.ToggleEvents, m.ToggleDrift, m.ToggleLofi, m.ToggleFullscreen, m.OpenMenu };
         for (int i = 0; i < labels.Length; i++)
         {
             var r = new Rectangle(x + (i % 2) * (bw + gap), y + (i / 2) * (btnH + gap), bw, btnH);
@@ -102,13 +104,22 @@ public static class ControlPanel
             if (click == 1) actions[i](); else if (click == 2 && i == 1) m.NudgeStopAt();
         }
         y += optRows * (btnH + gap);
-        UiText.Draw("Right-click: scene = rotation, Stop at = +30 min. H: help", x, y, (int)(fs * 0.8f), A(Warm, alpha, 0.5f));
+        if (m.UpdateNote.Length > 0)
+        {
+            // A new version is ready: a warm, clickable note instead of the hint.
+            var note = new Rectangle(x, y - 2 * s, w, fs * 1.2f);
+            bool over = live && Raylib.CheckCollisionPointRec(mouse, note);
+            UiText.Draw(m.UpdateNote, x, y, (int)(fs * 0.85f), A(new Color(255, 190, 120, 255), alpha, over ? 1f : 0.8f));
+            if (over && Raylib.IsMouseButtonPressed(MouseButton.Left)) m.OpenUpdates();
+        }
+        else UiText.Draw("Right-click: scene = rotation, Stop at = +30 min. H: help", x, y, (int)(fs * 0.8f), A(Warm, alpha, 0.5f));
 
         if (dragId != -1 && Raylib.IsMouseButtonReleased(MouseButton.Left)) { dragId = -1; m.Commit(); }
         return hot;
     }
 
-    static int Button(Rectangle r, string text, bool selected, float alpha, bool live, int fs)
+    // A rounded text button. Returns 1 on left click, 2 on right click, 0 otherwise. Also used by the Esc menu.
+    public static int Button(Rectangle r, string text, bool selected, float alpha, bool live, int fs)
     {
         bool hover = live && Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r);
         var fill = selected ? new Color(255, 190, 120, 80) : hover ? new Color(255, 240, 215, 50) : new Color(255, 240, 215, 22);

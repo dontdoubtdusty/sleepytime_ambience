@@ -17,15 +17,17 @@ Nothing else needs to be installed.
 
 Optional: right-click `SleepytimeAmbience.exe`, choose **Show more options**, then **Send to > Desktop (create shortcut)**.
 
-To update, download the new zip and replace the old folder. Your settings are kept.
+Updating: when a new version is out, a small note appears a few seconds after the app starts. Click **Update** and it
+downloads, installs and restarts by itself; your settings are kept. You can also check any time under Esc > Updates,
+or switch the check off there.
 
 To uninstall, delete the `SleepytimeAmbience` folder. To also remove your settings, delete `%APPDATA%\SleepytimeAmbience`
 (paste that into the File Explorer address bar).
 
 ## Using it
 
-Move the mouse to show a clickable panel with every control; the panel and cursor hide after 3 seconds. Press H for the
-keyboard help. Settings are saved automatically, and Windows will not go to sleep while the app is open.
+Move the mouse to show a clickable panel with every control; the panel and cursor hide after 3 seconds. Press Esc for
+the menu: a short guide, keyboard shortcuts, updates, your screenshots folder, about, reset settings and quit. Settings are saved automatically, and Windows will not go to sleep while the app is open.
 
 | Key | Action |
 |---|---|
@@ -45,8 +47,8 @@ keyboard help. Settings are saved automatically, and Windows will not go to slee
 | L | Lo-fi look on / off |
 | P | Hide or show the control panel |
 | F12 | Save a screenshot to `Pictures\Sleepytime Ambience` |
-| H | Help |
-| Esc | Quit |
+| H | Shortcut list |
+| Esc | Menu: guide, shortcuts, updates, screenshots folder, about, reset settings, quit |
 
 Sound sources are credited in `Assets/CREDITS.md` (also in the `Assets` folder of the download).
 
@@ -63,6 +65,7 @@ Requires the .NET 10 SDK. Built with C# and [Raylib-cs](https://github.com/rayli
    (a self-contained build, so the people you share it with need no .NET).
 3. On GitHub, open **Releases > Draft a new release**, create the tag `v<version>`, drag the zip into the
    attachments box, and click **Publish release**. The Install link above always points to the newest release.
+   Copies from version 1.1 on notice it a few seconds after starting and can update themselves in one click.
 
 The app icon is drawn by `tools\make-icon.ps1`; rerun it after changing the design.
 

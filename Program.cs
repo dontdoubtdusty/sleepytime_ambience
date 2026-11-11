@@ -44,11 +44,12 @@ if (shotPath != null) { settings.Scene = shotScene; settings.TimerMinutes = 0; s
 
 Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.VSyncHint);
 // App version, shown in the window title; tools\make-release.ps1 reads it to name the zip.
-const string Version = "1.0";
+const string Version = "1.1";
 Raylib.InitWindow(1280, 720, $"Sleepytime Ambience {Version}");
 // Window and taskbar icon (the exe's own icon comes from icon.ico in the project file).
 string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "icon.png");
 if (File.Exists(iconPath)) { var icon = Raylib.LoadImage(iconPath); Raylib.SetWindowIcon(icon); Raylib.UnloadImage(icon); }
+Raylib.SetExitKey(KeyboardKey.Null); // Esc opens the menu instead of closing the window
 Raylib.SetTargetFPS(60);
 UiText.Load();
 
@@ -100,10 +101,24 @@ float RotateSeconds() => float.TryParse(Environment.GetEnvironmentVariable("SLEE
 float rotateLeft = RotateSeconds();
 Vector2 lastMouse = Raylib.GetMousePosition();
 int shotFrames = 0;
-// F12 screenshot: a save waiting for the next frame, and the "saved" message (seconds left and text).
+const float ToastHold = 25f; // seconds the update pop-up stays before fading out by itself
+// F12 screenshot waiting for the next frame, and the short message at the bottom (seconds left and text).
 bool saveShot = false;
-float shotMsg = 0;
-string shotMsgText = "";
+float msg = 0;
+string msgText = "";
+
+// Updates: one quiet check a few seconds after launch (unless switched off), and the soft pop-up when one is ready.
+var updater = new Updater(Version);
+bool launchCheck = shotPath == null && settings.CheckUpdates && Environment.GetEnvironmentVariable("SLEEPY_NO_UPDATE") == null;
+if (shotPath == null) Updater.CleanupSoon();
+if (launchCheck) updater.Check(4000);
+if (args.Contains("--updated")) { msgText = $"Updated to version {Version}"; msg = 6f; }
+float toastT = -1, menuOn = 0; // seconds the pop-up has been showing (-1 = not yet); menu fade 0..1
+bool toastDone = false;
+string[] credits = Menu.LoadCredits();
+bool testInstall = Environment.GetEnvironmentVariable("SLEEPY_TEST_INSTALL") != null; // test only: install an update as soon as one is found
+string? shotUi = shotPath != null ? Environment.GetEnvironmentVariable("SLEEPY_SHOT_UI") : null;
+if (shotUi == "updates") updater.Check(); // test only: show a real check result on the Updates page
 
 float[] Vols() => settings.GetVolumes(scenes[sceneIdx]);
 void ApplyScene()
@@ -235,9 +250,24 @@ var panel = new PanelModel
     CycleTimer = CycleTimer, CycleStopAt = CycleStopAt, NudgeStopAt = NudgeStopAt, CycleDim = CycleDim, CycleRotate = CycleRotate,
     ToggleShuffle = ToggleShuffle, ToggleEvents = ToggleEvents, ToggleDrift = ToggleDrift, ToggleRotation = ToggleRotation,
     ToggleLofi = ToggleLofi, ToggleFullscreen = ToggleFullscreen,
-    Quit = () => quit = true,
+    OpenMenu = () => Menu.Open(), OpenUpdates = () => Menu.Open(updates: true),
     HidePanel = () => { settings.PanelHidden = true; settings.Save(); },
     Commit = () => settings.Save(),
+};
+
+// What the Esc menu shows and does; values are refreshed every frame in RefreshMenu.
+var menu = new MenuModel
+{
+    Version = Version,
+    Credits = credits,
+    Quit = () => quit = true,
+    OpenScreenshots = () => OpenFolder(ScreenshotDir()),
+    OpenWebsite = () => OpenUrl(Updater.HomePage),
+    OpenDownloadPage = () => OpenUrl(Updater.ReleasesPage),
+    ResetSettings = ResetSettings,
+    CheckNow = () => updater.Check(),
+    InstallUpdate = () => updater.Install(),
+    ToggleCheckAtLaunch = () => { settings.CheckUpdates = !settings.CheckUpdates; settings.Save(); },
 };
 
 while (!Raylib.WindowShouldClose() && !quit)
@@ -246,13 +276,15 @@ while (!Raylib.WindowShouldClose() && !quit)
     bool touched = false;
 
     // ---- input ----
+    if (Raylib.IsKeyPressed(KeyboardKey.Escape)) { Menu.HandleEsc(); touched = true; }
+    // While the menu is open, Key and KeyStep ignore the app shortcuts (the menu reads its own keys).
     for (int k = 0; k < sceneKeys.Length && k < scenes.Length; k++)
-        if (Raylib.IsKeyPressed(sceneKeys[k])) { RequestScene(k, false); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.Tab)) { RequestScene((pendingScene >= 0 ? pendingScene : sceneIdx) + 1, false); touched = true; }
+        if (Key(sceneKeys[k])) { RequestScene(k, false); touched = true; }
+    if (Key(KeyboardKey.Tab)) { RequestScene((pendingScene >= 0 ? pendingScene : sceneIdx) + 1, false); touched = true; }
 
     var sc2 = scenes[sceneIdx];
-    if (Raylib.IsKeyPressed(KeyboardKey.Left)) { layerSel = (layerSel + sc2.Layers.Length - 1) % sc2.Layers.Length; touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.Right)) { layerSel = (layerSel + 1) % sc2.Layers.Length; touched = true; }
+    if (Key(KeyboardKey.Left)) { layerSel = (layerSel + sc2.Layers.Length - 1) % sc2.Layers.Length; touched = true; }
+    if (Key(KeyboardKey.Right)) { layerSel = (layerSel + 1) % sc2.Layers.Length; touched = true; }
 
     float step = 0;
     if (KeyStep(KeyboardKey.PageUp) || KeyStep(KeyboardKey.Equal) || KeyStep(KeyboardKey.KpAdd)) step = 0.05f;
@@ -266,19 +298,19 @@ while (!Raylib.WindowShouldClose() && !quit)
     if (KeyStep(KeyboardKey.Up)) { settings.Master = Math.Clamp(MathF.Round((settings.Master + 0.05f) * 20) / 20, 0, 1); settings.Save(); touched = true; }
     if (KeyStep(KeyboardKey.Down)) { settings.Master = Math.Clamp(MathF.Round((settings.Master - 0.05f) * 20) / 20, 0, 1); settings.Save(); touched = true; }
 
-    if (Raylib.IsKeyPressed(KeyboardKey.D)) { CycleDim(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.T)) { CycleTimer(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.R)) { CycleRotate(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.U)) { if (Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift)) NudgeStopAt(); else CycleStopAt(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.S)) { ToggleShuffle(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.V)) { ToggleRotation(sceneIdx); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.E)) { ToggleEvents(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.N)) { ToggleDrift(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.F) || Raylib.IsKeyPressed(KeyboardKey.F11)) { ToggleFullscreen(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.L)) { ToggleLofi(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.H)) { showHelp = !showHelp; touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.P)) { settings.PanelHidden = !settings.PanelHidden; settings.Save(); touched = true; }
-    if (Raylib.IsKeyPressed(KeyboardKey.F12)) saveShot = true; // not "touched": the panel should not pop into the picture
+    if (Key(KeyboardKey.D)) { CycleDim(); touched = true; }
+    if (Key(KeyboardKey.T)) { CycleTimer(); touched = true; }
+    if (Key(KeyboardKey.R)) { CycleRotate(); touched = true; }
+    if (Key(KeyboardKey.U)) { if (Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift)) NudgeStopAt(); else CycleStopAt(); touched = true; }
+    if (Key(KeyboardKey.S)) { ToggleShuffle(); touched = true; }
+    if (Key(KeyboardKey.V)) { ToggleRotation(sceneIdx); touched = true; }
+    if (Key(KeyboardKey.E)) { ToggleEvents(); touched = true; }
+    if (Key(KeyboardKey.N)) { ToggleDrift(); touched = true; }
+    if (Key(KeyboardKey.F) || Key(KeyboardKey.F11)) { ToggleFullscreen(); touched = true; }
+    if (Key(KeyboardKey.L)) { ToggleLofi(); touched = true; }
+    if (Key(KeyboardKey.H)) { showHelp = !showHelp; touched = true; }
+    if (Key(KeyboardKey.P)) { settings.PanelHidden = !settings.PanelHidden; settings.Save(); touched = true; }
+    if (Key(KeyboardKey.F12)) saveShot = true; // not "touched": the panel should not pop into the picture
 
     var mouse = Raylib.GetMousePosition();
     if (mouse != lastMouse) { lastMouse = mouse; touched = true; }
@@ -331,6 +363,16 @@ while (!Raylib.WindowShouldClose() && !quit)
         ResetEvents();
     }
     helpOn += ((showHelp ? 1 : 0) - helpOn) * Math.Min(1, dt * 8);
+    menuOn += ((Menu.IsOpen ? 1 : 0) - menuOn) * Math.Min(1, dt * 8);
+    if (updater.State == Updater.Status.Restart) quit = true; // an update finished installing
+    // The new-version pop-up: once per launch, after the launch check, unless that version was skipped.
+    if (toastT < 0 && !toastDone && launchCheck && updater.Available && updater.Latest != settings.SkipVersion)
+    {
+        toastT = 0;
+        audio.PlayEvent(Evt.Notify);
+    }
+    if (testInstall && updater.Available) { testInstall = false; updater.Install(); }
+    if (toastT >= 0 && !toastDone) { toastT += dt; if (toastT > ToastHold + 2.5f) toastDone = true; }
 
     // ---- render scene to low-res target ----
     Raylib.BeginTextureMode(target);
@@ -348,6 +390,9 @@ while (!Raylib.WindowShouldClose() && !quit)
         DrawShaded(new Rectangle(0, 0, 1280, 720), shotFrames / 30f);
         RefreshPanel();
         ControlPanel.Draw(panel, 1280, 720, 1f);
+        // Test only: SLEEPY_SHOT_UI=main|guide|shortcuts|updates|about|reset draws that menu page, =toast the update pop-up.
+        if (shotUi == "toast") Menu.DrawToast("1.1", 1280, 720, 1f);
+        else if (shotUi != null) { Menu.OpenPage(shotUi); RefreshMenu(); Menu.Draw(menu, 1280, 720, 1f); }
         ForceOpaque(1280, 720);
         Raylib.EndTextureMode();
         var img = Raylib.LoadImageFromTexture(shot.Texture);
@@ -371,7 +416,7 @@ while (!Raylib.WindowShouldClose() && !quit)
     if (black > 0) Raylib.DrawRectangle(0, 0, sw, sh, new Color(0, 0, 0, (int)(Math.Clamp(black, 0, 1) * 255)));
 
     // Clickable panel (fades in on input) and the keyboard help overlay.
-    float panelAlpha = Math.Clamp(1 - (idle - 3f) / 1f, 0, 1);
+    float panelAlpha = Math.Clamp(1 - (idle - 3f) / 1f, 0, 1) * (1 - menuOn);
     RefreshPanel();
     if (settings.PanelHidden)
     {
@@ -383,12 +428,25 @@ while (!Raylib.WindowShouldClose() && !quit)
     // F12: save exactly what is on screen now, before the "saved" message is drawn over it.
     if (saveShot) { saveShot = false; SaveScreenshot(); }
     // The "saved" message: bottom centre, fades out over its last second.
-    if (shotMsg > 0)
+    if (msg > 0)
     {
-        shotMsg -= dt;
+        msg -= dt;
         float ms = 18 * sh / 720f;
-        UiText.Draw(shotMsgText, (sw - UiText.Measure(shotMsgText, ms)) / 2, sh - ms * 3, ms, new Color(255, 240, 215, (int)(Math.Clamp(shotMsg, 0, 1) * 200)));
+        UiText.Draw(msgText, (sw - UiText.Measure(msgText, ms)) / 2, sh - ms * 3, ms, new Color(255, 240, 215, (int)(Math.Clamp(msg, 0, 1) * 200)));
     }
+    // The new-version pop-up: fades in slowly, waits, then fades out on its own (hovering keeps it).
+    if (toastT >= 0 && !toastDone)
+    {
+        float tin = Math.Clamp(toastT / 1.5f, 0, 1), tout = Math.Clamp((ToastHold + 2.5f - toastT) / 2.5f, 0, 1);
+        float ta = tin * tin * (3 - 2 * tin) * tout * (1 - menuOn);
+        var (choice, hover) = Menu.DrawToast(updater.Latest, sw, sh, ta);
+        if (hover && toastT > 1.5f && toastT < ToastHold) toastT = Math.Min(toastT, ToastHold - 5);
+        if (choice != ToastChoice.None) toastT = Math.Max(toastT, ToastHold); // any choice: fade out
+        if (choice == ToastChoice.Update) { Menu.Open(updates: true); updater.Install(); }
+        if (choice == ToastChoice.Skip) { settings.SkipVersion = updater.Latest; settings.Save(); }
+    }
+    RefreshMenu();
+    Menu.Draw(menu, sw, sh, menuOn);
     // Blending leaves the window partly transparent, which Windows screenshot tools capture as black; make it opaque.
     ForceOpaque(sw, sh);
     Raylib.EndDrawing();
@@ -401,6 +459,7 @@ Raylib.UnloadRenderTexture(target);
 UiText.Unload();
 
 Raylib.CloseWindow();
+if (updater.State == Updater.Status.Restart) Updater.Relaunch();
 return;
 
 // ---------------------------------------------------------------------------
@@ -415,21 +474,55 @@ static void ForceOpaque(int w, int h)
     Rlgl.ColorMask(true, true, true, true);
 }
 
+// Where F12 screenshots go: PicturesSleepytime Ambience.
+static string ScreenshotDir() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Sleepytime Ambience");
+
+// Opens a folder in File Explorer (creating it first) and a web page in the default browser.
+static void OpenFolder(string dir)
+{
+    try { Directory.CreateDirectory(dir); System.Diagnostics.Process.Start("explorer.exe", "\"" + dir + "\""); } catch { }
+}
+static void OpenUrl(string url)
+{
+    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+}
+
+// Puts every option back to its default, keeping the scene, fullscreen and update choices.
+void ResetSettings()
+{
+    settings = new Settings { Scene = settings.Scene, Fullscreen = settings.Fullscreen, CheckUpdates = settings.CheckUpdates, SkipVersion = settings.SkipVersion };
+    nightT = 0;
+    rotateLeft = RotateSeconds();
+    ApplyScene();
+    StartTimer();
+    settings.Save();
+    msgText = "Settings reset"; msg = 3f;
+}
+
+// Copies the update state and options into the menu model.
+void RefreshMenu()
+{
+    menu.UpdateStatus = updater.StatusText;
+    menu.UpdateAvailable = updater.Available;
+    menu.UpdateBusy = updater.Busy;
+    menu.CheckAtLaunch = settings.CheckUpdates;
+}
+
 // Saves what is on screen right now as a PNG in Pictures\Sleepytime Ambience, and sets the message to show.
 void SaveScreenshot()
 {
     try
     {
-        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Sleepytime Ambience");
+        string dir = ScreenshotDir();
         Directory.CreateDirectory(dir);
         string file = Path.Combine(dir, $"{scenes[sceneIdx].Name} {DateTime.Now:yyyy-MM-dd HH.mm.ss}.png");
         var img = Raylib.LoadImageFromScreen();
         bool ok = Raylib.ExportImage(img, file);
         Raylib.UnloadImage(img);
-        shotMsgText = ok ? @"Screenshot saved to Pictures\Sleepytime Ambience" : "Screenshot could not be saved";
+        msgText = ok ? @"Screenshot saved to Pictures\Sleepytime Ambience" : "Screenshot could not be saved";
     }
-    catch (Exception ex) { shotMsgText = "Screenshot could not be saved: " + ex.Message; }
-    shotMsg = 3f;
+    catch (Exception ex) { msgText = "Screenshot could not be saved: " + ex.Message; }
+    msg = 3f;
 }
 
 // Draws the scene picture into dest, through the lo-fi shader when it is on and compiled.
@@ -452,7 +545,9 @@ static string Hm(float secs)
     return m >= 60 ? $"{m / 60}h {m % 60:00}m" : $"{m} min";
 }
 
-static bool KeyStep(KeyboardKey k) => Raylib.IsKeyPressed(k) || Raylib.IsKeyPressedRepeat(k);
+// App shortcut keys: ignored while the Esc menu is open. KeyStep also repeats while held.
+static bool Key(KeyboardKey k) => !Menu.IsOpen && Raylib.IsKeyPressed(k);
+static bool KeyStep(KeyboardKey k) => !Menu.IsOpen && (Raylib.IsKeyPressed(k) || Raylib.IsKeyPressedRepeat(k));
 
 // Copies the app's current values into the panel model (what the panel shows).
 void RefreshPanel()
@@ -472,6 +567,7 @@ void RefreshPanel()
     panel.DriftText = "Night drift: " + (settings.NightDrift ? "on" : "off");
     panel.InRotation = Enumerable.Range(0, scenes.Length).Select(InRotation).ToArray();
     panel.LofiOn = settings.Lofi;
+    panel.UpdateNote = updater.Available ? $"Version {updater.Latest} is ready. Click here to update." : "";
 }
 
 // Keyboard help overlay (toggled with H).
@@ -481,33 +577,13 @@ void DrawHelp(int sw, int sh)
     int fs = Math.Max(12, (int)(20 * s)), pad = (int)(20 * s);
     if (helpOn > 0.02f)
     {
-        string[] lines =
-        {
-            "1-9, 0, F1-F4 / Tab   switch scene",
-            "Up / Down      master volume",
-            "Left / Right   select sound layer",
-            "PgUp / PgDn    layer volume (also + / -)",
-            "T              sleep timer, up to 10 h (fades out, then quits)",
-            "U              stop at a clock time (Shift+U: +30 min)",
-            "D              dim screen",
-            "R              auto-rotate scenes (off, 5, 10, 20, 30, 60 min)",
-            "V              add or remove this scene from auto-rotate",
-            "S              shuffle auto-rotate",
-            "E              random sound events on / off",
-            "N              night drift (slow dim and quieting) on / off",
-            "Mouse          move it to show the clickable panel",
-            "F / F11        fullscreen",
-            "F12            save a screenshot to Pictures",
-            "L              lo-fi look on / off",
-            "P              hide or show the control panel",
-            "H              toggle this help",
-            "Esc            quit",
-        };
+        var lines = Menu.Shortcuts;
         int hy = sh - pad - (int)(lines.Length * fs * 1.4f);
         int ha = (int)(helpOn * 230);
-        foreach (var l in lines)
+        foreach (var (k, d) in lines)
         {
-            UiText.Draw(l, pad, hy, fs, new Color(255, 240, 215, ha));
+            UiText.Draw(k, pad, hy, fs, new Color(255, 190, 120, ha));
+            UiText.Draw(d, pad + fs * 9.5f, hy, fs, new Color(255, 240, 215, ha));
             hy += (int)(fs * 1.4f);
         }
     }
@@ -540,6 +616,8 @@ class Settings
     public List<string> RotateScenes { get; set; } = new(); // scenes auto-rotate uses (empty = all)
     public bool EventsOn { get; set; } = true;
     public bool NightDrift { get; set; }
+    public bool CheckUpdates { get; set; } = true; // look for a new version at launch
+    public string SkipVersion { get; set; } = ""; // a version the user chose to skip in the pop-up
     public Dictionary<string, float[]> LayerVolumes { get; set; } = new();
 
     static string PathFile => System.IO.Path.Combine(

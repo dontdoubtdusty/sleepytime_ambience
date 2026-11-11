@@ -24,5 +24,23 @@ public static class UiText
     public static float Measure(string text, float size)
         => Raylib.MeasureTextEx(font, text, size, size * 0.02f).X;
 
+    // Splits text into lines that fit the width; "\n" starts a new paragraph (an empty line for "\n\n").
+    public static List<string> Wrap(string text, float size, float width)
+    {
+        var lines = new List<string>();
+        foreach (var para in text.Split('\n'))
+        {
+            string line = "";
+            foreach (var word in para.Split(' '))
+            {
+                string next = line.Length == 0 ? word : line + " " + word;
+                if (line.Length > 0 && Measure(next, size) > width) { lines.Add(line); line = word; }
+                else line = next;
+            }
+            lines.Add(line);
+        }
+        return lines;
+    }
+
     public static void Unload() { if (loaded) Raylib.UnloadFont(font); }
 }
