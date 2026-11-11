@@ -15,6 +15,9 @@ public abstract class Scene
     public (Layer Layer, string Label, float Default)[] Layers => all ??= SoundLayers
         .Concat(new[] { (Layer.Brown, "Brown noise", 0f), (Layer.Pink, "Pink noise", 0f) }).ToArray();
 
+    /// <summary>Random sound events this scene plays now and then: which sound, and the shortest and longest wait (seconds) between plays.</summary>
+    public virtual (Evt Kind, float MinSecs, float MaxSecs)[] Events => Array.Empty<(Evt, float, float)>();
+
     public abstract void Update(float dt);
     public abstract void Draw();
 }

@@ -16,8 +16,9 @@ Sleepytime Ambience: a cozy, lo-fi ambient scene player for falling asleep, for 
 
 ## Architecture
 Flat project: all `.cs` files in the repo root, no namespaces. `Assets/**` (recordings, shaders, credits) is copied to the build and publish output automatically. `claude/file-map.md` has one entry per file and a "Where to find things" index; use it before searching.
-- Scenes live one per file in `Scenes/` and draw into a fixed 640x360 render texture (`Gfx.W`, `Gfx.H`; all scene coordinates are in that space), which `Program.cs` scales to the window with letterboxing. Scenes simulate in `Update(dt)` and draw in `Draw()`; keep those separate. Scenes know nothing about the window or the UI.
+- Scenes live one per file (14 today: keys 1-9, 0, F1-F4) in `Scenes/` and draw into a fixed 640x360 render texture (`Gfx.W`, `Gfx.H`; all scene coordinates are in that space), which `Program.cs` scales to the window with letterboxing. Scenes simulate in `Update(dt)` and draw in `Draw()`; keep those separate. Scenes know nothing about the window or the UI.
 - Sound is a mixer of looping real recordings, one per `Layer`. `AmbientAudio` implements NAudio's `ISampleProvider`, so Windows pulls samples on its own thread. `Next()` runs on that thread: no allocation, no locks, no raylib calls, no logging. The only values the main thread writes are `Target[]`, `Master` and `Fade`. Never go back to raylib's audio streams: polling them from the render loop caused constant stutter (see the session log).
+- Short loops are layered (`Layered` in `Audio.cs`) so repeats blur. A scene can also list random sound `Events` (owl, chimes, gull, pop, thunder); `Program.cs` counts them down and calls `AmbientAudio.PlayEvent`, which only writes one volatile int for the audio thread to pick up.
 - A scene lists its sound layers (`Scene.Layers`: layer, label, default volume). Settings store per-scene volumes by scene name and reset a scene's volumes if its layer list changes length. The `Layer` enum value is the index into the mixer's arrays, so adding a layer means raising `LayerCount`.
 - Blending erodes the render texture's alpha, so `Program.cs` forces alpha back to opaque after drawing the scene (`Rlgl.ColorMask`). Keep that when touching the draw path.
 - Raylib 6 API notes that bit us: this build cannot decode FLAC (use wav, ogg or mp3); `DrawCircleGradient` takes a `Vector2`; `DrawTriangle` needs counter-clockwise points; `BeginScissorMode` works inside texture mode.
@@ -42,7 +43,7 @@ Flat project: all `.cs` files in the repo root, no namespaces. `Assets/**` (reco
 - You do the building. Build features all the way through; do not hand me pieces to write.
 - Comment in plain language: one comment per method or block saying what it does, not how. Keep file header comments accurate.
 - Keep state and logic separate from rendering.
-- Prefer real recordings over synthesized sound. This app is for my own use only and will never be released, so asset licenses do not matter; take the best-sounding file from any source you can download without logging in (OpenGameArt has worked well).
+- Prefer real recordings over synthesized sound. This app is for me and one friend (zip on GitHub Releases), never sold. Asset licenses and attribution are a parked future problem: do not raise them; take the best-sounding file from any source you can download without logging in (OpenGameArt has worked well).
 - If you cannot run or compile the code, re-read your changes for errors before handing them over.
 - I cannot hear or see what you build until I run it. Say plainly what you verified (build, `--shot`, `--bench`, callback stats) and what only I can judge (how it sounds and looks).
 
@@ -52,7 +53,7 @@ Flat project: all `.cs` files in the repo root, no namespaces. `Assets/**` (reco
 
 ## Bookkeeping
 - At session start, read claude/file-map.md, claude/session-log.md and claude/vision.md before searching the code. The code wins if they disagree; flag the mismatch.
-- There is no version number yet. When we first share a build, add one `Version` constant and show it in the window title.
+- `Version` in `Program.cs` shows in the window title and names the release zip. Raise it before each `Make Release.bat`.
 
 ## Wrap up
 When I say "wrap up", do all of these:

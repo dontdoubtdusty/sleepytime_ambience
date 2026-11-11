@@ -10,18 +10,18 @@ Line counts are rough (refreshed Nov 9, 2026). Files over ~400 lines are marked 
 
 | File | Lines | What it does |
 |---|---|---|
-| `Program.cs` | 388 | Entry point and main loop (top-level statements). Dev flags `--bench` and `--shot <scene> <png>`. Creates the window, font, `AmbientAudio` and the scene list; reads keyboard input (scene keys 1-9 and 0, Tab, volume, layer select, timer, dim, auto-rotate, fullscreen, lo-fi, help); scene changes fade to black, switch, fade in (`RequestScene`; slow fades for auto-rotate); the sleep timer and its fade; renders the scene into the 640x360 texture, restores the texture's alpha, draws it through the lo-fi shader (`DrawShaded`), then the dim overlay, black fade, the control panel (`RefreshPanel`) and the keyboard help (`DrawHelp`). Also holds `Settings` (JSON in `%APPDATA%\SleepytimeAmbience`) and `PreventSleep`. |
-| `Audio.cs` | 397 | `Layer` enum and `AmbientAudio`: the mixer. Decodes each recording from `Assets/` (raylib `LoadWave`), crossfades its end into its start for a seamless loop (`Finish`), normalizes loudness, and mixes layers per sample in `Next()` on the WASAPI thread (NAudio `ISampleProvider`). Brown and pink noise are synthesized. Thunder is a one-shot from a rain+thunder clip, low-passed, started a little before its loudest moment. If a recording is missing, the layer falls back to a synthesized version (`Synth*` methods). `Smooth` sets how fast volumes ease (slow for auto-rotate). Keeps callback timing stats for `SLEEPY_AUDIO_STATS`. |
-| `Controls.cs` | 128 | The clickable panel: `PanelModel` (values and actions the app gives it) and `ControlPanel.Draw` (scene buttons, sliders, option buttons, a Hide button; handles clicks and slider drags). Fades in on input. Draws at window resolution, on top of the shader. |
+| `Program.cs` | 520 | Entry point and main loop (top-level statements). Dev flags `--bench` and `--shot <scene> <png>`. Creates the window, font, `AmbientAudio` and the scene list; reads keyboard input (scene keys 1-9, 0 and F1-F4, Tab, volume, layer select, timer, stop-at, dim, auto-rotate, shuffle, rotation list, sound events, night drift, fullscreen, lo-fi, help); scene changes fade to black, switch, fade in (`RequestScene`; slow fades for auto-rotate); the sleep timer (up to 10 hours, or "stop at" a clock time) and its fade; auto-rotate over the picked scenes (optionally shuffled); the random sound-event countdowns; night drift (slow dim and quieting); renders the scene into the 640x360 texture, restores the texture's alpha, draws it through the lo-fi shader (`DrawShaded`), then the dim overlay, black fade, the control panel (`RefreshPanel`) and the keyboard help (`DrawHelp`). Also holds `Settings` (JSON in `%APPDATA%\SleepytimeAmbience`) and `PreventSleep`. |
+| `Audio.cs` | 520 | `Layer` enum and `AmbientAudio`: the mixer. Decodes each recording from `Assets/` (raylib `LoadWave`), crossfades its end into its start for a seamless loop (`Finish`), normalizes loudness, and mixes layers per sample in `Next()` on the WASAPI thread (NAudio `ISampleProvider`). Short loops (waves, crickets, wind, underwater, train, water, rain) play twice, the second copy half a loop away and 7% slower, so repeats blur (`Layered`, `Loop`). Random sound events (`Evt`: chimes, gull, owl, log pop, distant thunder) are one-shots started with `PlayEvent`; the owl and pop are synthesized, chimes play a random 14 s excerpt. Brown and pink noise are synthesized. Thunder is a one-shot from a rain+thunder clip, low-passed, started a little before its loudest moment. If a recording is missing, the layer falls back to a synthesized version (`Synth*` methods). `Smooth` sets how fast volumes ease (slow for auto-rotate). Keeps callback timing stats for `SLEEPY_AUDIO_STATS`. |
+| `Controls.cs` | 150 | The clickable panel: `PanelModel` (values and actions the app gives it) and `ControlPanel.Draw` (scene buttons with rotation markers and right-click to add or remove a scene from auto-rotate, sliders, ten option buttons, a Hide button; shrinks to fit the window; handles clicks and slider drags). Fades in on input. Draws at window resolution, on top of the shader. |
 | `UiText.cs` | 28 | The text font (Lora from `Assets/Lora.ttf`, smooth-scaled; falls back to raylib's default). All on-screen text goes through `UiText.Draw` / `Measure`. |
-| `Gfx.cs` | 133 | Drawing helpers shared by scenes: size constants (`W`, `H`), color helpers (`C`, `Lerp`, `WithA`), `Glow` (soft radial light, use with additive blending), `Tri` (triangle in any point order), `Vignette`. Also the `Fire` class: particle flames and embers (fireplace and cabin). |
+| `Gfx.cs` | 150 | Drawing helpers shared by scenes: size constants (`W`, `H`), color helpers (`C`, `Lerp`, `WithA`), `Glow` (soft radial light, use with additive blending), `Tri` (triangle in any point order), `Vignette`, `DrawPine`. Also the `Fire` class: particle flames and embers (fireplace and cabin). |
 | `SleepyAmbience.csproj` | 22 | Project file. WinExe, assembly `SleepytimeAmbience`, net10.0, unsafe allowed (raylib sample pointers), `Assets/**` copied to build and publish output. |
 
-## Scenes (`Scenes/`, one file per scene; order in the array in `Program.cs` sets keys 1-9, 0)
+## Scenes (`Scenes/`, one file per scene; order in the array in `Program.cs` sets keys 1-9, 0, then F1-F4)
 
 | File | Lines | Scene |
 |---|---|---|
-| `Scene.cs` | 20 | Base class: name, per-scene sound layers (`SoundLayers`), plus brown and pink noise layers added to every scene (`Layers`), `Update`, `Draw`. |
+| `Scene.cs` | 24 | Base class: name, optional random sound `Events`, per-scene sound layers (`SoundLayers`), plus brown and pink noise layers added to every scene (`Layers`), `Update`, `Draw`. |
 | `FireplaceScene.cs` | 118 | 1. Brick hearth, flames, candles, and a sleeping cat (breathing, ear twitch). Layers: Fireplace, Cat purr. |
 | `CabinScene.cs` | 133 | 2. Snowy Cabin: window onto falling snow and pines, small hearth. Layers: Fireplace, Winter wind. |
 | `ForestScene.cs` | 132 | 3. Night Forest: swaying pines, moon, mist, fireflies. Layers: Crickets, Wind, Forest ambience. |
@@ -32,13 +32,17 @@ Line counts are rough (refreshed Nov 9, 2026). Files over ~400 lines are marked 
 | `SpaceScene.cs` | 104 | 8. Observation Window: drifting stars, nebula, planet, console lights. Layer: Ship hum. |
 | `AquariumScene.cs` | 136 | 9. Aquarium: fish, plants, bubbles, light shafts. Layers: Bubbles, Underwater hum. |
 | `CityScene.cs` | 119 | 10. City Window: rainy skyline with lit windows, neon, cars, plant. Layers: Rain, Wind. |
+| `CampfireScene.cs` | 95 | 11. Campfire under the stars: fire, ring of stones, logs, tent, pines, Milky Way. Layers: Campfire, Crickets, Night breeze. Events: log pop, owl. |
+| `HotSpringScene.cs` | 135 | 12. Hot Spring in the snow: steaming pool ringed with snowy rocks, stone lanterns, mountains, snowfall. Layers: Spring water, Winter wind. Events: owl, chimes. |
+| `AtticScene.cs` | 130 | 13. Attic Skylight: rafters, rain on a roof window, dust in the light, trunk, lamp, a dripping leak into a bucket. Layers: Rain on the roof, Distant thunder, Wind. Event: distant thunder. |
+| `KoiPondScene.cs` | 175 | 14. Koi Pond: top-down pond, six koi, lily pads, petals, ripples, lantern light. Layers: Pond water, Crickets, Breeze. Events: chimes, owl. |
 | `RainWindow.cs` | 74 | Shared rain-on-glass helper: falling streaks and drops that slide on the glass. Used by the library, city and tent scenes. |
 
 ## Assets (`Assets/`)
 
 - Shader: `lofi.fs` (GLSL 330 fragment shader, the lo-fi look; strengths are constants at the top).
 - Font: `Lora.ttf`.
-- Recordings loaded by `AmbientAudio`: `fire.wav`, `rain.ogg`, `wind.ogg`, `crickets.mp3`, `forest.mp3`, `clock.wav`, `thunder.ogg`, `waves.ogg`, `train.ogg`, `hum.mp3`, `bubbles.wav`, `underwater.mp3`, `purr.ogg`. Raylib here cannot decode FLAC, so use wav, ogg or mp3.
+- Recordings loaded by `AmbientAudio`: `fire.wav`, `rain.ogg`, `wind.ogg`, `crickets.mp3`, `forest.mp3`, `clock.wav`, `thunder.ogg`, `waves.ogg`, `train.ogg`, `hum.mp3`, `bubbles.wav`, `underwater.mp3`, `purr.ogg`, `water.wav`, and the event clips `chimes.ogg` and `gull.wav`. Raylib here cannot decode FLAC, so use wav, ogg or mp3.
 - `CREDITS.md` records where each file came from.
 
 ## Docs and project files
@@ -64,8 +68,10 @@ Line counts are rough (refreshed Nov 9, 2026). Files over ~400 lines are marked 
 - Flame size, speed, color, brightness: `Fire` in `Gfx.cs`.
 - Edge darkening: `Gfx.Vignette`. Lo-fi strength (palette steps, bloom, grain, scanlines, tint): `Assets/lofi.fs`.
 - Lightning and thunder timing: `LibraryScene` (`nextFlash`) and `AmbientAudio.TriggerThunder` / `LoadThunder`.
-- Sleep timer choices: `timerChoices` in `Program.cs`; fade length (5 min, or the whole timer if shorter): `fadeSecs`. Dim levels: `dimLevels`. Auto-rotate choices: `rotateChoices`.
+- Sleep timer choices (to 10 h): `timerChoices` in `Program.cs`; "stop at" presets: `stopPresets`; night drift length: `NightSecs`; fade length (5 min, or the whole timer if shorter): `fadeSecs`. Dim levels: `dimLevels`. Auto-rotate choices: `rotateChoices`.
 - Scene switch speeds: `RequestScene` (manual 0.25 s out and 0.7 s in; auto-rotate 2 s and 2.5 s). Audio crossfade speed: `AmbientAudio.Smooth`.
+- Random sound events: each scene's `Events` (sound, shortest and longest wait); loudness of each sound: `ClipGain` in `Audio.cs`; the countdown loop is in `Program.cs` (`evLeft`).
+- Auto-rotate favorites and shuffle: `Settings.RotateScenes`, `RotateShuffle`, `NextRotateScene` in `Program.cs`.
 - Panel layout and look: `ControlPanel.Draw` in `Controls.cs`. Panel and help visibility time (3 s then a 1 s fade): `idle` in `Program.cs`.
 - Hiding the panel: `Settings.PanelHidden`, key P and the Hide button; the reminder text is in `Program.cs` near `ControlPanel.Draw`.
 - Font and its size: `Assets/Lora.ttf`, `UiText.cs`; text sizes are set in `Controls.cs` and `DrawHelp`.

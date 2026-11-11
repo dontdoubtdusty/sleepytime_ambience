@@ -40,6 +40,21 @@ public static class Gfx
         Raylib.DrawRectangleGradientH(0, 0, 90, H, dark, clear);
         Raylib.DrawRectangleGradientH(W - 90, 0, 90, H, clear, dark);
     }
+
+    /// <summary>A stacked-triangle pine tree standing at x with its foot at baseY; sway bends the top sideways.</summary>
+    public static void DrawPine(float x, float baseY, float h, float w, Color c, float sway)
+    {
+        Raylib.DrawRectangle((int)x - 2, (int)(baseY - 10), 5, 40, c);
+        const int levels = 5;
+        for (int k = 0; k < levels; k++)
+        {
+            float topY = baseY - h + k * h * 0.17f;
+            float botY = topY + h * 0.36f;
+            float half = w * (0.3f + 0.17f * k) * 0.5f;
+            float apexX = x + sway * (1 - (float)k / levels);
+            Raylib.DrawTriangle(new Vector2(apexX, topY), new Vector2(x - half, botY), new Vector2(x + half, botY), c);
+        }
+    }
 }
 
 /// <summary>Particle fire: additive soft blobs that rise, shrink and cool, plus drifting embers.</summary>

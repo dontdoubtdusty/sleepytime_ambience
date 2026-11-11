@@ -2,7 +2,10 @@ using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using Raylib_cs;
 
-public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock, Brown, Pink, Waves, Train, Hum, Bubbles, Underwater, Purr }
+public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock, Brown, Pink, Waves, Train, Hum, Bubbles, Underwater, Purr, Water }
+
+/// <summary>Short sounds a scene can play now and then (random sound events).</summary>
+public enum Evt { Chimes, Gull, Owl, Pop, Thunder }
 
 /// <summary>
 /// Ambient audio mixer. Each layer plays a real (CC0) recording from the Assets folder,
@@ -12,7 +15,7 @@ public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock
 public unsafe class AmbientAudio : ISampleProvider, IDisposable
 {
     const int Rate = 48000;
-    const int LayerCount = 16;
+    const int LayerCount = 17;
 
     public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(Rate, 2);
 
@@ -68,6 +71,8 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         Load(Layer.Bubbles, Path.Combine(dir, "bubbles.wav"), 0.10f, 0.3f);
         Load(Layer.Underwater, Path.Combine(dir, "underwater.mp3"), 0.10f, 2.0f);
         Load(Layer.Purr, Path.Combine(dir, "purr.ogg"), 0.10f, 0.5f);
+        Load(Layer.Water, Path.Combine(dir, "water.wav"), 0.10f, 1.5f);
+        LoadEvents(dir);
         LoadThunder(Path.Combine(dir, "thunder.ogg"));
 
         if (!openDevice) return;
@@ -136,6 +141,7 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         }
         for (int i = 0; i < loop.Length; i++) loop[i] *= gain;
         loops[(int)layer] = loop;
+        posB[(int)layer] = loop.Length / 2f; // the second copy of a layered loop starts half a loop away
     }
 
     void LoadThunder(string path)
@@ -192,15 +198,33 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     }
     public long Reads, FramesRead; public double MaxReadMs;
 
-    static readonly Layer[] RecordedOnly = { Layer.Waves, Layer.Train, Layer.Hum, Layer.Bubbles, Layer.Underwater, Layer.Purr };
+    static readonly Layer[] RecordedOnly = { Layer.Waves, Layer.Train, Layer.Hum, Layer.Bubbles, Layer.Underwater, Layer.Purr, Layer.Water };
+
+    // Layers whose short loop is played twice, the second copy half a loop away and a little slower,
+    // so the two drift against each other and the repeat is hard to notice.
+    static readonly bool[] Layered = MakeLayered(Layer.Waves, Layer.Crickets, Layer.Wind, Layer.Underwater, Layer.Train, Layer.Water, Layer.Rain);
+    static bool[] MakeLayered(params Layer[] ls) { var a = new bool[LayerCount]; foreach (var l in ls) a[(int)l] = true; return a; }
+    const float SecondSpeed = 0.93f;
+    readonly float[] posB = new float[LayerCount];
 
     float Loop(Layer l)
     {
-        var b = loops[(int)l]!;
-        int p = pos[(int)l];
+        int li = (int)l;
+        var b = loops[li]!;
+        int p = pos[li];
         float s = b[p];
         if (++p >= b.Length) p = 0;
-        pos[(int)l] = p;
+        pos[li] = p;
+        if (Layered[li])
+        {
+            float q = posB[li];
+            int qi = (int)q, q2 = qi + 1 >= b.Length ? 0 : qi + 1;
+            float sb = b[qi] + (b[q2] - b[qi]) * (q - qi);
+            q += SecondSpeed;
+            if (q >= b.Length) q -= b.Length;
+            posB[li] = q;
+            s = (s + sb) * 0.7f; // two uncorrelated copies at 0.7 keep the loudness the same
+        }
         return s;
     }
 
@@ -318,6 +342,8 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         if (loops[(int)Layer.Clock] != null) { if (vClock > 0.001f) o += Loop(Layer.Clock) * vClock; else Skip(Layer.Clock); }
         else SynthClock(ref o, w, vClock);
 
+        MixEvent(ref o);
+
         o *= Master * Fade;
         return MathF.Tanh(o);
     }
@@ -327,6 +353,98 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     {
         var b = loops[(int)l]!;
         if (++pos[(int)l] >= b.Length) pos[(int)l] = 0;
+        if (Layered[(int)l] && (posB[(int)l] += SecondSpeed) >= b.Length) posB[(int)l] -= b.Length;
+    }
+
+    // ---- random sound events (owl, chimes, gull, log pop, distant thunder) ----
+
+    readonly float[]?[] clips = new float[5][];
+    static readonly float[] ClipGain = { 0.4f, 0.25f, 0.18f, 0.25f, 0 };
+    float[]? evBuf; int evPos, evStart, evEnd, evFade; float evGain;
+    volatile int evQueued = -1;
+    /// <summary>Loudness of the random events relative to the loops (0 = off).</summary>
+    public volatile float EventLevel = 1f;
+
+    /// <summary>Ask the audio thread to play a one-shot. Called from the main thread; one event plays at a time.</summary>
+    public void PlayEvent(Evt e)
+    {
+        if (e == Evt.Thunder) { TriggerThunder(); return; }
+        evQueued = (int)e;
+    }
+
+    // Loads the recorded clips and builds the synthesized ones (owl, pop).
+    void LoadEvents(string dir)
+    {
+        clips[(int)Evt.Chimes] = Peaked(Decode(Path.Combine(dir, "chimes.ogg")));
+        clips[(int)Evt.Gull] = Peaked(Decode(Path.Combine(dir, "gull.wav")));
+        clips[(int)Evt.Owl] = MakeOwl();
+        clips[(int)Evt.Pop] = MakePop();
+    }
+
+    static float[]? Peaked(float[]? a)
+    {
+        if (a == null) return null;
+        float m = 0;
+        foreach (float v in a) m = MathF.Max(m, MathF.Abs(v));
+        if (m > 1e-5f) for (int i = 0; i < a.Length; i++) a[i] /= m;
+        return a;
+    }
+
+    // A soft owl call: one long hoo, a pause, then three shorter ones, each a gently falling tone.
+    static float[] MakeOwl()
+    {
+        var a = new float[(int)(Rate * 3.2)];
+        void Hoot(double at, double dur, double f0)
+        {
+            int s0 = (int)(at * Rate), n = (int)(dur * Rate);
+            double ph = 0;
+            for (int i = 0; i < n && s0 + i < a.Length; i++)
+            {
+                double p = (double)i / n;
+                double env = Math.Pow(Math.Sin(Math.PI * Math.Pow(p, 0.7)), 2);
+                ph += 2 * Math.PI * f0 * (1 - 0.1 * p) / Rate;
+                a[s0 + i] += (float)((Math.Sin(ph) + 0.25 * Math.Sin(2 * ph)) * env);
+            }
+        }
+        Hoot(0.0, 0.5, 420); Hoot(1.1, 0.28, 400); Hoot(1.5, 0.28, 400); Hoot(1.9, 0.6, 380);
+        return Peaked(a)!;
+    }
+
+    // A log pop: a very short burst of low-passed noise with a quick decay.
+    static float[] MakePop()
+    {
+        var rnd = new Random(3);
+        var a = new float[(int)(Rate * 0.25)];
+        float lp = 0;
+        for (int i = 0; i < a.Length; i++)
+        {
+            lp += ((float)(rnd.NextDouble() * 2 - 1) - lp) * 0.25f;
+            a[i] = lp * MathF.Exp(-i / (Rate * 0.02f));
+        }
+        return Peaked(a)!;
+    }
+
+    // Starts a queued event (on the audio thread). Chimes play a random 14 s excerpt; the gull plays its first 8 s.
+    void StartEvent(int kind)
+    {
+        var b = clips[kind];
+        if (b == null) return;
+        int len = kind == (int)Evt.Chimes ? Rate * 14 : kind == (int)Evt.Gull ? Rate * 8 : b.Length;
+        len = Math.Min(len, b.Length);
+        evStart = kind == (int)Evt.Chimes && b.Length > len ? rng.Next(0, b.Length - len) : 0;
+        evEnd = evStart + len; evPos = evStart; evBuf = b; evGain = ClipGain[kind];
+        evFade = kind == (int)Evt.Chimes ? Rate * 2 : kind == (int)Evt.Pop ? Rate / 500 : (int)(Rate * 0.05);
+    }
+
+    // Mixes the playing event into o.
+    void MixEvent(ref float o)
+    {
+        int q = evQueued;
+        if (q >= 0) { evQueued = -1; StartEvent(q); }
+        if (evBuf == null) return;
+        float env = MathF.Min(1f, MathF.Min((evPos - evStart) / (float)evFade, (evEnd - evPos) / (float)evFade));
+        o += evBuf[evPos] * env * evGain * EventLevel;
+        if (++evPos >= evEnd) evBuf = null;
     }
 
     // ---- synth fallbacks (only used if a recording is missing) ----
