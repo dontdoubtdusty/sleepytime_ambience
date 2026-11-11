@@ -11,7 +11,7 @@ public class AquariumScene : Scene
         (Layer.Bubbles, "Bubbles", 0.5f), (Layer.Underwater, "Underwater hum", 0.35f),
     };
 
-    struct Fish { public float X, Y, BaseY, Speed, Size, Phase; public int Dir, Kind; public Color Body, Fin; }
+    struct Fish { public float X, Y, BaseY, Speed, Size, Phase; public int Dir, Kind; public float Face; public Color Body, Fin; }
     struct Bubble { public float X, Y, Size, Speed, Phase; }
     readonly Fish[] fish = new Fish[8];
     readonly List<Bubble> bubbles = new();
@@ -37,7 +37,7 @@ public class AquariumScene : Scene
                 X = Rf(40, 600), BaseY = Rf(70, 280), Speed = Rf(9, 24), Size = Rf(1.0f, 1.45f), Phase = Rf(0, 6.28f), Kind = i % 4,
                 Dir = R.Next(2) == 0 ? -1 : 1, Body = b, Fin = Lerp(b, C(255, 255, 255), 0.25f)
             };
-            fish[i].Y = fish[i].BaseY;
+            fish[i].Y = fish[i].BaseY; fish[i].Face = fish[i].Dir;
         }
     }
 
@@ -47,10 +47,13 @@ public class AquariumScene : Scene
         for (int i = 0; i < fish.Length; i++)
         {
             ref Fish f = ref fish[i];
-            f.X += f.Dir * f.Speed * dt;
-            f.Y = f.BaseY + MathF.Sin(t * 0.6f + f.Phase) * 10;
-            if (f.X < 24) { f.Dir = 1; f.BaseY = Rf(70, 280); }
-            if (f.X > W - 24) { f.Dir = -1; f.BaseY = Rf(70, 280); }
+            // Face eases from -1 to 1 (and back), so a turn is a slow swing through end-on: the fish slows, narrows, and swims off the other way.
+            f.Face += (f.Dir - f.Face) * Math.Min(1, dt * 1.6f);
+            f.X += f.Face * f.Speed * dt;
+            float wantY = f.BaseY + MathF.Sin(t * 0.6f + f.Phase) * 10;
+            f.Y += (wantY - f.Y) * Math.Min(1, dt * 1.5f);                         // depth changes glide instead of jumping
+            if (f.X < 24 && f.Dir < 0) { f.Dir = 1; f.BaseY = Rf(70, 280); }
+            if (f.X > W - 24 && f.Dir > 0) { f.Dir = -1; f.BaseY = Rf(70, 280); }
         }
         bubbleAcc += dt * 6;
         while (bubbleAcc >= 1)
@@ -104,7 +107,7 @@ public class AquariumScene : Scene
     // strips, so colour bands (pale back, pale belly, stripes) are just strips between two heights of that same profile.
     void PaintFish(Fish f)
     {
-        float s = f.Size, d = f.Dir;
+        float s = f.Size, d = f.Face;
         (float L, float H, float Peak)[] shapes = { (28, 7.6f, 0.42f), (24, 8.6f, 0.5f), (24, 11f, 0.5f), (20, 6.6f, 0.45f) };
         var (L, H, peak) = shapes[f.Kind];
         float e = MathF.Log(0.5f) / MathF.Log(peak);

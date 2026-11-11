@@ -517,6 +517,10 @@ while (!Raylib.WindowShouldClose() && !quit)
     Raylib.EndDrawing();
 }
 
+Raylib.BeginDrawing();
+Raylib.ClearBackground(Color.Black);
+Raylib.EndDrawing();
+
 if (shotPath == null) { settings.Save(); PreventSleep(false); }
 if (Environment.GetEnvironmentVariable("SLEEPY_AUDIO_STATS") != null) Console.WriteLine($"AUDIOSTATS reads={audio.Reads} frames={audio.FramesRead} maxReadMs={audio.MaxReadMs:F2}");
 audio.Dispose();
