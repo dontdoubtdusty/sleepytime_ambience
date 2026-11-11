@@ -1,72 +1,45 @@
 # Sleepytime Ambience
 
-Offline, cozy lo-fi ambient scenes for falling asleep. The pictures are drawn live and the sounds are
-recordings stored on disk, so nothing streams and nothing stops when the internet drops.
+Cozy lo-fi ambient scenes for falling asleep, fully offline. The pictures are drawn live and the sounds are
+recordings stored on disk, so nothing streams and nothing stops when the internet drops. Fourteen scenes, each with
+its own mix of sound layers, plus a sleep timer, screen dimming and auto-rotate.
 
-Scenes: Fireplace (with a sleeping cat), Snowy Cabin, Night Forest, Rainy Library, Night Train, Seaside Lighthouse, Tent in the Rain, Observation Window, Aquarium, City Window, Campfire, Hot Spring, Attic Skylight, Koi Pond.
+![Fireplace scene with the control panel open](docs/screenshot.png)
 
 ## Install (Windows 10 or 11)
 
-Nothing else needs to be installed.
+1. On the [Releases page](https://github.com/dontdoubtdusty/sleepytime_ambience/releases/latest), download `SleepytimeAmbience-<version>-win-x64.zip`.
+2. Right-click the zip, choose **Extract All...**, then **Extract**. Running it from inside the zip will not work.
+3. Open the extracted folder and double-click `SleepytimeAmbience.exe`.
+4. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway** (once only).
 
-1. Go to the [Releases page](https://github.com/dontdoubtdusty/sleepytime_ambience/releases/latest).
-2. Under **Assets**, click `SleepytimeAmbience-<version>-win-x64.zip` to download it.
-3. Right-click the downloaded zip, choose **Extract All...**, then **Extract**. (Running it from inside the zip without extracting will not work.)
-4. Open the extracted `SleepytimeAmbience` folder and double-click `SleepytimeAmbience.exe`.
-5. Windows may show "Windows protected your PC", because the app is not signed. Click **More info**, then **Run anyway**. You only need to do this once.
+Updates: when a new version is out, a note appears shortly after starting. Click **Update** and it installs and
+restarts by itself; settings are kept.
 
-Optional: right-click `SleepytimeAmbience.exe`, choose **Show more options**, then **Send to > Desktop (create shortcut)**.
+Uninstall: delete the folder, and `%APPDATA%\SleepytimeAmbience` to remove settings.
 
-Updating: when a new version is out, a small note appears a few seconds after the app starts. Click **Update** and it
-downloads, installs and restarts by itself; your settings are kept. You can also check any time under Esc > Updates,
-or switch the check off there.
+## Usage
 
-To uninstall, delete the `SleepytimeAmbience` folder. To also remove your settings, delete `%APPDATA%\SleepytimeAmbience`
-(paste that into the File Explorer address bar).
-
-## Using it
-
-Move the mouse to show a clickable panel with every control; the panel and cursor hide after 3 seconds. Press Esc for
-the menu: a short guide, keyboard shortcuts, updates, your screenshots folder, about, reset settings and quit. Settings are saved automatically, and Windows will not go to sleep while the app is open.
+Move the mouse to show the control panel; it hides after 3 seconds. Press Esc for the menu (guide, shortcuts,
+updates, screenshots folder, reset settings, quit) and H for the full shortcut list. Settings save automatically.
 
 | Key | Action |
 |---|---|
-| 1-9, 0, F1-F4 / Tab | Switch scene (fourteen scenes) |
+| 1-9, 0, F1-F4 / Tab | Switch scene |
 | Up / Down | Master volume |
-| Left / Right | Select sound layer |
-| PgUp / PgDn (or + / -) | Layer volume |
-| T | Sleep timer (off, 15 min up to 10 h). Fades out over the last 5 min, then quits |
-| U | Stop at a clock time (22:00 to 09:00 presets; Shift+U adds 30 min) |
+| Left / Right, PgUp / PgDn | Pick a sound layer, change its volume |
+| T / U | Sleep timer / stop at a clock time (fades out, then quits) |
 | D | Dim screen |
-| F / F11 | Borderless fullscreen |
-| R | Auto-rotate scenes (off, 5, 10, 20, 30, 60 min) |
-| V | Add or remove the current scene from auto-rotate (right-click a scene button does the same) |
-| S | Shuffle auto-rotate |
-| E | Random sound events (owl, chimes, gulls, log pops, distant thunder) on or off |
+| F / F11 | Fullscreen |
+| R | Auto-rotate scenes |
 | N | Night drift: slowly dims and quiets over 2.5 hours |
-| L | Lo-fi look on / off |
-| P | Hide or show the control panel |
 | F12 | Save a screenshot to `Pictures\Sleepytime Ambience` |
-| H | Shortcut list |
-| Esc | Menu: guide, shortcuts, updates, screenshots folder, about, reset settings, quit |
 
-Sound sources are credited in `Assets/CREDITS.md` (also in the `Assets` folder of the download).
+## Known limits
 
-## Building from source
-
-Requires the .NET 10 SDK. Built with C# and [Raylib-cs](https://github.com/raylib-cs/raylib-cs), with sound through NAudio.
-
-    dotnet run -c Release
-
-## Making a release
-
-1. Raise `Version` near the top of `Program.cs` (it shows in the window title and names the zip).
-2. Double-click `Make Release.bat`. It writes `release\SleepytimeAmbience-<version>-win-x64.zip`
-   (a self-contained build, so the people you share it with need no .NET).
-3. On GitHub, open **Releases > Draft a new release**, create the tag `v<version>`, drag the zip into the
-   attachments box, and click **Publish release**. The Install link above always points to the newest release.
-   Copies from version 1.1 on notice it a few seconds after starting and can update themselves in one click.
-
-The app icon is drawn by `tools\make-icon.ps1`; rerun it after changing the design.
-
-Working notes for Claude Code are in `CLAUDE.md` and the `claude/` folder.
+- Windows 10/11 x64 only.
+- The app is not signed, so Windows warns on first run.
+- Scenes are drawn at 640x360 and scaled up, so they look soft on large screens (on purpose), with black bars on
+  screens that are not 16:9.
+- Windows will not go to sleep while the app is open; use the sleep timer if you want it to stop.
+- The update check needs internet; everything else works offline.
