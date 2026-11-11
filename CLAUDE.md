@@ -3,15 +3,16 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project
-Sleepytime Ambience: a cozy, lo-fi ambient scene player for falling asleep, for Windows 10/11 x64. It replaces long ambient videos that stop when the internet is unreliable: everything (pictures and sound) lives on disk and is drawn live, so nothing streams. C# / .NET 10, Raylib-cs (drawing, shaders, window), NAudio (sound output through WASAPI). No test suite or linter. GitHub repo: `dontdoubtdusty/sleepytime_ambience`; the local folder is `sleepytime_ambience`. Commit and push only when I ask.
+Drowse: a cozy, lo-fi ambient scene player for falling asleep, for Windows 10/11 x64. It replaces long ambient videos that stop when the internet is unreliable: everything (pictures and sound) lives on disk and is drawn live, so nothing streams. C# / .NET 10, Raylib-cs (drawing, shaders, window), NAudio (sound output through WASAPI). No test suite or linter. GitHub repo: `dontdoubtdusty/sleepytime_ambience`; the local folder is `sleepytime_ambience`. Commit and push only when I ask.
 
 ## Commands
 - Run: `dotnet run` (slow Debug build; fine for looks, not for judging sound). Build: `dotnet build`. Release check: `dotnet build -c Release`.
-- It is a `WinExe` (assembly `SleepytimeAmbience`), so there is no console window; run the exe from bash to see raylib's log lines.
-- Make the clickable copy: `dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist`. `dist/` is gitignored. The Desktop shortcut "Sleepytime Ambience" points at `dist\SleepytimeAmbience.exe`, so republish after changes I should see, and close the running app first.
-- Screenshots (works on this PC): `SleepytimeAmbience.exe --shot <sceneIndex> <out.png>` renders 150 frames at a fixed 1/30 s step and saves the scene's render texture. Read the PNG to check looks. It captures the scene texture only, not the shader pass, the HUD or the dim overlay unless the code says otherwise (`claude/file-map.md`).
+- It is a `WinExe` (assembly `Drowse`), so there is no console window; run the exe from bash to see raylib's log lines.
+- Make the clickable copy: `dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:TrimMode=partial -p:EnableCompressionInSingleFile=true -p:InvariantGlobalization=true -p:DebugType=None -o dist` (trimmed and compressed, about 12 MB exe; `BuiltInComInteropSupport` in the project file keeps the sound output working). `dist/` is gitignored. The Desktop shortcut "Drowse" points at `dist\Drowse.exe`, so republish after changes I should see, and close the running app first.
+- Screenshots (works on this PC): `Drowse.exe --shot <sceneIndex> <out.png>` renders 150 frames at a fixed 1/30 s step and saves the scene's render texture. Read the PNG to check looks. It captures the scene texture only, not the shader pass, the HUD or the dim overlay unless the code says otherwise (`claude/file-map.md`).
 - Test-only: `SLEEPY_ROTATE_SECS=4` (with auto-rotate on in the settings) makes auto-rotate switch every 4 seconds; `SLEEPY_AUDIO_STATS=1` also prints a line each time the scene changes.
-- Sound check: `SleepytimeAmbience.exe --bench` renders 30 s of every layer with no device and prints speed, level and which layers loaded a real recording. `set SLEEPY_AUDIO_STATS=1` before a normal run prints the audio callback count and slowest callback when the app closes normally; a slowest callback near 200 ms means audible stutter.
+- Sound check: `Drowse.exe --bench` renders 30 s of every layer with no device and prints speed, level and which layers loaded a real recording. `set SLEEPY_AUDIO_STATS=1` before a normal run prints the audio callback count and slowest callback when the app closes normally; a slowest callback near 200 ms means audible stutter.
+- Speed check: `Drowse.exe --perf` (frame times, garbage collections, start-up). Animal check: `Drowse.exe --animals sheet.png`. Release zips: `Make Release.bat` makes a full zip and a small update zip (no sounds; add `-WithSounds` to the script when a sound changed).
 - Smoke test after every change: `claude/qa-plan.md` section 3.
 
 ## Architecture
@@ -22,7 +23,7 @@ Flat project: all `.cs` files in the repo root, no namespaces. `Assets/**` (reco
 - A scene lists its sound layers (`Scene.Layers`: layer, label, default volume). Settings store per-scene volumes by scene name and reset a scene's volumes if its layer list changes length. The `Layer` enum value is the index into the mixer's arrays, so adding a layer means raising `LayerCount`.
 - Blending erodes the render texture's alpha, so `Program.cs` forces alpha back to opaque after drawing the scene (`Rlgl.ColorMask`). Keep that when touching the draw path.
 - Raylib 6 API notes that bit us: this build cannot decode FLAC (use wav, ogg or mp3); `DrawCircleGradient` takes a `Vector2`; `DrawTriangle` needs counter-clockwise points; `BeginScissorMode` works inside texture mode.
-- Persistence: `Settings` (bottom of `Program.cs`) writes `%APPDATA%\SleepytimeAmbience\settings.json`. Windows is kept awake while the app runs (`SetThreadExecutionState`).
+- Persistence: `Settings` (bottom of `Program.cs`) writes `%APPDATA%\Drowse\settings.json`. Windows is kept awake while the app runs (`SetThreadExecutionState`).
 - Every recording is listed with its source link in `Assets/CREDITS.md` (a record of where it came from, not a legal need). Add a line there when adding a sound.
 
 ## Before editing

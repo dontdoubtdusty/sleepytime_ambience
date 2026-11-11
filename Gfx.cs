@@ -6,6 +6,9 @@ public static class Gfx
     public const int W = 640, H = 360;
     public static readonly Random R = new();
 
+    /// <summary>Test only (the animal lab): when true the scenes leave their animals out, so a picture with and without them can be compared.</summary>
+    public static bool HideAnimals;
+
     public static float Rf(float a, float b) => a + (float)R.NextDouble() * (b - a);
     public static Color C(int r, int g, int b, int a = 255) => new Color(r, g, b, a);
     public static Color WithA(Color c, float a) => new Color((int)c.R, (int)c.G, (int)c.B, (int)Math.Clamp(a, 0, 255));
@@ -18,10 +21,27 @@ public static class Gfx
             (int)(a.B + (b.B - a.B) * t), (int)(a.A + (b.A - a.A) * t));
     }
 
+    /// <summary>The colour made darker (factor below 1) or lighter (above 1); alpha is kept.</summary>
+    public static Color Shade(Color c, float f)
+        => new Color((int)Math.Clamp(c.R * f, 0, 255), (int)Math.Clamp(c.G * f, 0, 255), (int)Math.Clamp(c.B * f, 0, 255), (int)c.A);
+
     /// <summary>Soft radial glow. Use inside additive blend mode for light.</summary>
     public static void Glow(float x, float y, float r, Color c)
     {
         Raylib.DrawCircleGradient(new Vector2(x, y), r, c, new Color((int)c.R, (int)c.G, (int)c.B, 0));
+    }
+
+    /// <summary>A glowing head with a tail fading behind it (shooting stars, comets). dir points the way it travels; call in additive blending.</summary>
+    public static void Streak(Vector2 head, Vector2 dir, float len, float headR, Color c, float alpha)
+    {
+        const int N = 24;
+        for (int i = 0; i < N; i++)
+        {
+            float u = i / (float)N;
+            float fade = (1 - u) * (1 - u);
+            Raylib.DrawCircleV(head - dir * (u * len), MathF.Max(0.6f, headR * (1 - u * 0.7f)), WithA(c, alpha * fade));
+        }
+        Glow(head.X, head.Y, headR * 5, WithA(c, alpha * 0.35f));
     }
 
     /// <summary>Filled triangle that works whichever way the points are ordered.</summary>

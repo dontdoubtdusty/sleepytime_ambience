@@ -19,6 +19,12 @@ public class CityScene : Scene
     readonly RainWindow rain = new(Wx, Wy, Ww, Wh, 120, 50);
     struct Car { public float X, Speed; public bool Red; }
     readonly Car[] cars = new Car[7];
+    // Neon sign colours for this launch: (first sign, second sign).
+    static readonly (Color A, Color B)[] Neons =
+    {
+        (C(255, 80, 160), C(60, 220, 230)), (C(255, 170, 60), C(90, 230, 150)), (C(170, 110, 255), C(255, 120, 80)), (C(255, 70, 70), C(90, 150, 255)),
+    };
+    readonly (Color A, Color B) neon = Neons[Launch.Pick(Neons.Length)];
     float t, lampFlick = 1, toggleTimer;
 
     public CityScene()
@@ -53,6 +59,36 @@ public class CityScene : Scene
         }
     }
 
+    // Rare event: a few small, soft fireworks go off far away over the skyline (about 14 seconds).
+    protected override float RareLength => 14;
+    readonly (float X, float Y, float At, Color Col)[] bursts = new (float, float, float, Color)[5];
+    protected override void OnRareStart()
+    {
+        Color[] cols = { C(255, 190, 120), C(150, 220, 255), C(255, 150, 190), C(190, 255, 170), C(220, 190, 255) };
+        for (int i = 0; i < bursts.Length; i++)
+            bursts[i] = (Rf(Wx + 40, Wx + Ww - 40), Rf(Wy + 25, Wy + 100), i * 2.3f + Rf(0, 1.2f), cols[R.Next(cols.Length)]);
+    }
+
+    // Each burst: 26 sparks fly out, slow down, droop and fade over 2.4 seconds.
+    void DrawFireworks()
+    {
+        Raylib.BeginBlendMode(BlendMode.Additive);
+        foreach (var b in bursts)
+        {
+            float age = RareT - b.At;
+            if (age < 0 || age > 2.4f) continue;
+            float fade = 1 - age / 2.4f, r = 24 * (1 - MathF.Exp(-age * 2.2f));
+            for (int i = 0; i < 26; i++)
+            {
+                float ang = i / 26f * 2 * MathF.PI + MathF.Sin(i * 12.9f) * 0.12f, rr = r * (0.8f + 0.2f * MathF.Sin(i * 7.1f));
+                var p = new Vector2(b.X + MathF.Cos(ang) * rr, b.Y + MathF.Sin(ang) * rr + age * age * 5);
+                Raylib.DrawCircleV(p, 1.1f, WithA(b.Col, 200 * fade * fade));
+            }
+            Glow(b.X, b.Y, 26, WithA(b.Col, 26 * fade * fade));
+        }
+        Raylib.EndBlendMode();
+    }
+
     public override void Draw()
     {
         // Room
@@ -62,6 +98,7 @@ public class CityScene : Scene
         int groundY = Wy + Wh - 22;
         Raylib.BeginScissorMode(Wx, Wy, Ww, Wh);
         Raylib.DrawRectangleGradientV(Wx, Wy, Ww, Wh, C(18, 14, 38), C(78, 50, 82));
+        if (RareT >= 0) DrawFireworks();
         int idx = 0;
         foreach (var b in buildings)
         {
@@ -77,6 +114,11 @@ public class CityScene : Scene
         }
         // Road and cars
         Raylib.DrawRectangle(Wx, groundY, Ww, 30, C(12, 10, 20));
+        // A clock tower in the distance with a softly lit face (silent)
+        Raylib.DrawRectangle(Wx + 214, groundY - 170, 24, 170, C(26, 20, 44));
+        Tri(new Vector2(Wx + 212, groundY - 170), new Vector2(Wx + 240, groundY - 170), new Vector2(Wx + 226, groundY - 192), C(26, 20, 44));
+        Clocks.DrawFace(Wx + 226, groundY - 152, 8, C(60, 46, 70), C(226, 206, 150), C(50, 36, 30), null);
+
         Raylib.BeginBlendMode(BlendMode.Additive);
         foreach (var c in cars)
         {
@@ -86,8 +128,8 @@ public class CityScene : Scene
         }
         // Neon glows and a slow aircraft beacon
         float pulse = 0.75f + 0.25f * MathF.Sin(t * 0.7f);
-        Glow(Wx + 90, groundY - 70, 38, C(255, 80, 160, (int)(70 * pulse)));
-        Glow(Wx + 250, groundY - 50, 34, C(60, 220, 230, (int)(60 * (1.5f - pulse))));
+        Glow(Wx + 90, groundY - 70, 38, WithA(neon.A, 70 * pulse));
+        Glow(Wx + 250, groundY - 50, 34, WithA(neon.B, 60 * (1.5f - pulse)));
         if (MathF.Sin(t * 1.4f) > 0.6f) Glow(Wx + 200, groundY - 150, 9, C(255, 40, 40, 200));
         Raylib.EndBlendMode();
         rain.DrawStreaks();

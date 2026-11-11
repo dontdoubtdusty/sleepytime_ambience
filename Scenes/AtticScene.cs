@@ -11,7 +11,7 @@ public class AtticScene : Scene
     public override string Name => "Attic Skylight";
     protected override (Layer, string, float)[] SoundLayers => new[]
     {
-        (Layer.Rain, "Rain on the roof", 0.75f), (Layer.Thunder, "Distant thunder", 0.3f), (Layer.Wind, "Wind", 0.15f),
+        (Layer.RoofRain, "Rain on the roof", 0.75f), (Layer.Thunder, "Distant thunder", 0.3f), (Layer.Wind, "Wind", 0.15f),
     };
     // Thunder a long way off; no flash, the sky outside stays steady.
     public override (Evt, float, float)[] Events => new[] { (Evt.Thunder, 50f, 130f) };
@@ -21,6 +21,14 @@ public class AtticScene : Scene
     struct Mote { public float X, Y, Vx, Vy, Phase; }
     readonly Mote[] motes = new Mote[44];
     float t, lamp = 1, lampTarget = 1, lampTimer, dripY = -10, dripWait = 2, ripple = -1;
+
+    // Trunk and bucket for this launch: (trunk, trunk lid, bucket) in brown, green, blue or oxblood.
+    static readonly (Color Trunk, Color Lid, Color Bucket)[] Looks =
+    {
+        (C(70, 44, 28), C(86, 54, 34), C(86, 92, 100)), (C(42, 64, 48), C(54, 80, 60), C(120, 70, 48)),
+        (C(44, 56, 82), C(58, 72, 102), C(150, 154, 158)), (C(88, 38, 36), C(108, 50, 46), C(70, 96, 120)),
+    };
+    readonly (Color Trunk, Color Lid, Color Bucket) look = Looks[Launch.Pick(Looks.Length)];
 
     public AtticScene()
     {
@@ -49,6 +57,41 @@ public class AtticScene : Scene
         if (ripple >= 0) { ripple += dt; if (ripple > 1.6f) ripple = -1; }
     }
 
+    // Rare event: a small bat flutters across the skylight against the stormy sky and is gone (about 8 seconds).
+    protected override float RareLength => 8;
+
+    protected override bool AnimalsVisible => RareT >= 0;
+    protected override void DrawAnimals() => DrawBat();
+
+    void DrawBat()
+    {
+        if (HideAnimals) return;
+        float u = RareT / RareLength;                                        // 0 to 1 across the glass
+        float x = SkyX - 20 + u * (SkyW + 40);
+        float y = SkyY + 62 + MathF.Sin(u * 9) * 16 - MathF.Sin(u * MathF.PI) * 20;   // a swooping, wobbling path
+        float flap = MathF.Sin(RareT * 16);                                  // wing beat
+        Color c = C(14, 16, 24);
+        if (!Sprites.Begin(0, new Vector2(x, y), 64, 40)) return;
+        // Wings first: one connected membrane per side (shoulder, wrist, tip, then a scalloped trailing edge back to the body).
+        foreach (float d in new[] { -1f, 1f })
+        {
+            var shoulder = new Vector2(x + d * 2, y - 2);
+            var wrist = new Vector2(x + d * 12, y - 7 - 6 * flap);
+            var tip = new Vector2(x + d * 27, y - 2 - 10 * flap);
+            var s1 = new Vector2(x + d * 20, y + 4 - 6 * flap);       // the three dips along the back edge of the wing
+            var s2 = new Vector2(x + d * 13, y + 3 - 2.5f * flap);
+            var s3 = new Vector2(x + d * 7, y + 5);
+            var hip = new Vector2(x + d * 2, y + 4);
+            Tri(shoulder, wrist, tip, c); Tri(shoulder, tip, s1, c); Tri(shoulder, s1, s2, c); Tri(shoulder, s2, s3, c); Tri(shoulder, s3, hip, c);
+            Raylib.DrawLineEx(wrist, tip, 1f, C(74, 86, 116));        // wing bone, a little lighter
+        }
+        Raylib.DrawEllipseV(new Vector2(x, y + 1), 3.6f, 6, c);                                                   // body
+        Raylib.DrawCircleV(new Vector2(x, y - 5), 3.2f, c);                                                       // head
+        Tri(new Vector2(x - 3, y - 6), new Vector2(x - 3.4f, y - 11), new Vector2(x - 0.6f, y - 7.5f), c);      // pointed ears
+        Tri(new Vector2(x + 3, y - 6), new Vector2(x + 3.4f, y - 11), new Vector2(x + 0.6f, y - 7.5f), c);
+        Sprites.End();
+    }
+
     public override void Draw()
     {
         // Back wall and floor
@@ -66,9 +109,14 @@ public class AtticScene : Scene
             Tri(new Vector2(rx, 0), new Vector2(rx - 16, 0), new Vector2(rx - 60, 250), C(44, 30, 21));
         }
 
+        // An old wall clock hung on the back wall (silent)
+        Raylib.DrawRectangle(78, 96, 4, 30, C(44, 30, 22));
+        Clocks.DrawFace(80, 124, 16, C(96, 66, 40), C(196, 184, 156), C(44, 32, 24), C(150, 50, 40));
+
         // Skylight: stormy sky, rain streaks, frame and glass drops
         Raylib.DrawRectangleGradientV((int)SkyX, (int)SkyY, (int)SkyW, (int)SkyH, C(34, 44, 66), C(70, 84, 108));
         Raylib.BeginScissorMode((int)SkyX, (int)SkyY, (int)SkyW, (int)SkyH);
+        if (RareT >= 0) DrawBat();
         rain.DrawStreaks();
         rain.DrawGlassDrops();
         Raylib.EndScissorMode();
@@ -88,8 +136,8 @@ public class AtticScene : Scene
         Raylib.EndBlendMode();
 
         // Trunk with straps, stacked boxes and a lamp on top
-        Raylib.DrawRectangle(60, 270, 150, 56, C(70, 44, 28));
-        Raylib.DrawRectangle(60, 262, 150, 12, C(86, 54, 34));
+        Raylib.DrawRectangle(60, 270, 150, 56, look.Trunk);
+        Raylib.DrawRectangle(60, 262, 150, 12, look.Lid);
         Raylib.DrawRectangle(90, 262, 8, 64, C(40, 28, 20));
         Raylib.DrawRectangle(172, 262, 8, 64, C(40, 28, 20));
         Raylib.DrawRectangle(126, 286, 18, 12, C(180, 140, 70));
@@ -109,7 +157,7 @@ public class AtticScene : Scene
         Raylib.DrawRectangle(504, 322, 62, 5, C(64, 64, 70));
 
         // Bucket catching the drip
-        Raylib.DrawRectangle(396, 300, 40, 28, C(86, 92, 100));
+        Raylib.DrawRectangle(396, 300, 40, 28, look.Bucket);
         Raylib.DrawEllipse(416, 300, 20, 5, C(40, 60, 76));
         if (dripY >= 0) Raylib.DrawCircleV(new Vector2(416, dripY), 1.6f, C(160, 190, 220, 200));
         if (ripple >= 0)

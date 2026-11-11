@@ -13,7 +13,7 @@ Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ## Files and folders
 - `Assets/` (sound recordings, shaders, `CREDITS.md`) is copied to the build and publish output automatically.
-- Settings live in `%APPDATA%\SleepytimeAmbience\settings.json`, outside the repo.
+- Settings live in `%APPDATA%\Drowse\settings.json`, outside the repo.
 - `dist/`, `bin/` and `obj/` are git-ignored.
 - `claude/file-map.md` has one entry per file and a "Where to find things" index. Read it before searching the code.
 

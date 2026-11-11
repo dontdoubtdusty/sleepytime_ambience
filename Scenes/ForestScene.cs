@@ -25,6 +25,14 @@ public class ForestScene : Scene
     readonly float[] grassX = new float[130];
     float t;
 
+    // The moon for this launch: size and tint (pale silver, harvest gold, cool blue, small and bright).
+    static readonly (float R, Color Face, Color Halo)[] Moons =
+    {
+        (17, C(228, 236, 222), C(150, 180, 200)), (22, C(240, 214, 150), C(210, 170, 90)),
+        (14, C(206, 222, 242), C(130, 160, 220)), (26, C(222, 214, 226), C(170, 150, 200)),
+    };
+    readonly (float R, Color Face, Color Halo) moon = Moons[Launch.Pick(Moons.Length)];
+
     public ForestScene()
     {
         for (int l = 0; l < 3; l++)
@@ -62,6 +70,44 @@ public class ForestScene : Scene
         }
     }
 
+    // Rare event: a deer walks slowly through the clearing in front of the dark trees, stops to graze, and walks on (about 55 seconds).
+    const float HopSpeed = 22, SitAt = 12, SitLen = 4;
+    protected override float RareLength => (W + 80) / HopSpeed + SitLen;
+    int rabbitDir = 1;
+    protected override void OnRareStart() => rabbitDir = R.Next(2) == 0 ? 1 : -1;
+
+    protected override bool AnimalsVisible => RareT >= 0;
+    protected override void DrawAnimals() => DrawRabbit();
+
+    // Rare event: a rabbit hops across the clearing, sits up for a moment, then hops on (about 33 seconds).
+    void DrawRabbit()
+    {
+        if (HideAnimals) return;
+        float d = rabbitDir;
+        bool sitting = RareT >= SitAt && RareT < SitAt + SitLen;
+        float walked = RareT < SitAt ? RareT : sitting ? SitAt : RareT - SitLen;
+        float x = (d > 0 ? -40 : W + 40) + d * HopSpeed * walked;
+        float y = 306;                                           // where the feet touch the grass
+        float lift = sitting ? 0 : MathF.Abs(MathF.Sin(walked * 2.9f)) * 9;   // each hop is a small arc
+        if (!Sprites.Begin(0, new Vector2(x, y - 20), 90, 80)) return;
+        Color fur = C(78, 80, 86), rim = C(130, 138, 150), white = C(196, 198, 204);
+        Rlgl.PushMatrix(); Rlgl.Translatef(x, y, 0); Rlgl.Scalef(2f, 2f, 1); Rlgl.Translatef(-x, -y, 0);   // drawn 2x
+        float by = y - 6 - lift;
+        Raylib.DrawCircleV(new Vector2(x - d * 9, by - 1), 2.2f, white);                        // cotton tail
+        Raylib.DrawEllipse((int)x, (int)by, sitting ? 7 : 9, sitting ? 8 : 6, fur);             // round body
+        Raylib.DrawEllipse((int)(x + d * 3), (int)(by + 4), 6, 2.5f, fur);                      // back foot
+        float hy = sitting ? by - 9 : by - 3;
+        var head = new Vector2(x + d * (sitting ? 5 : 9), hy);
+        Raylib.DrawCircleV(head, 4.2f, fur);
+        float twitch = sitting ? MathF.Sin(RareT * 6) * 1.2f : 0;                                // ears twitch while it sits
+        Raylib.DrawLineEx(head + new Vector2(-d, -3), head + new Vector2(-d * 3 + twitch, -12), 2.4f, fur);
+        Raylib.DrawLineEx(head + new Vector2(d * 1.5f, -3), head + new Vector2(d * 0.5f + twitch, -12), 2.4f, fur);
+        Raylib.DrawCircleV(head + new Vector2(d * 4, 1), 0.9f, white);                           // nose
+        Raylib.DrawLineEx(new Vector2(x - d * 6, by - 5), new Vector2(x + d * 5, by - 6), 1, rim);   // moonlit back
+        Rlgl.PopMatrix();
+        Sprites.End();
+    }
+
     public override void Draw()
     {
         Raylib.DrawRectangleGradientV(0, 0, W, 290, C(5, 12, 26), C(30, 62, 70));
@@ -71,11 +117,11 @@ public class ForestScene : Scene
             Raylib.DrawRectangle((int)x, (int)y, 1, 1, C(230, 240, 255, a));
         }
         Raylib.BeginBlendMode(BlendMode.Additive);
-        Glow(510, 72, 110, C(150, 180, 200, 40));
+        Glow(510, 72, 80 + moon.R * 2, WithA(moon.Halo, 40));
         Raylib.EndBlendMode();
-        Raylib.DrawCircle(510, 72, 17, C(228, 236, 222));
-        Raylib.DrawCircle(504, 68, 4, C(205, 214, 202));
-        Raylib.DrawCircle(516, 78, 3, C(208, 217, 205));
+        Raylib.DrawCircle(510, 72, moon.R, moon.Face);
+        Raylib.DrawCircle((int)(510 - moon.R * 0.35f), (int)(72 - moon.R * 0.25f), moon.R * 0.24f, Shade(moon.Face, 0.9f));
+        Raylib.DrawCircle((int)(510 + moon.R * 0.35f), (int)(72 + moon.R * 0.35f), moon.R * 0.18f, Shade(moon.Face, 0.91f));
 
         for (int l = 0; l < 3; l++)
         {
@@ -99,6 +145,8 @@ public class ForestScene : Scene
             float h = 9 + (gx * 7 % 9);
             Raylib.DrawLineV(new Vector2(gx, 330 + (gx * 3 % 28)), new Vector2(gx + s, 330 + (gx * 3 % 28) - h), C(8, 22, 24));
         }
+
+        if (RareT >= 0) DrawRabbit();
 
         // Fireflies
         Raylib.BeginBlendMode(BlendMode.Additive);

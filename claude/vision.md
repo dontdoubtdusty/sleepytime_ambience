@@ -1,4 +1,4 @@
-# Sleepytime Ambience Vision
+# Drowse Vision
 
 Status tags: [Built] [In progress] [Planned] [Undecided]. This doc describes the app, not the builds: when something is built, change its tag and keep the description current. It is the one home for design; build sketches, asset sources and checks are in `next-session-plan.md`.
 
@@ -20,7 +20,7 @@ A cozy ambient environment to fall asleep to, running on the owner's Windows PC.
 - Owl and pop are synthesized (no CC0 owl hoot found); the chimes and gull are recordings.
 - [Built] Brown and pink noise layers in every scene, off by default.
 - Sound must never stutter. Playback is driven by Windows, not by the video frame rate (see `CLAUDE.md`).
-- [Undecided] The waves clip is still only about 12 seconds (now layered). A long river-waves file (`sea-and-river-wave-sounds`, 12 MB, a river not the sea) is an alternative if the layering is not enough.
+- [Built] Seaside waves are now a 4.4 minute sea recording (`waves.mp3`, not layered), replacing the 12 s clip that repeated too obviously. Rejected: the river-waves file (a river, not the sea). Revisit if the swells still feel repetitive or the 4 s loop seam is audible.
 
 ## Scenes
 - [Built] 1. Fireplace, now with a sleeping cat that breathes and twitches an ear.

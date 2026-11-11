@@ -55,10 +55,16 @@ public class Updater
                 if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) { State = Status.NoRelease; return; }
                 resp.EnsureSuccessStatusCode();
                 using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-                string url = "";
+                // A release can carry a small "update" zip (no sound files) next to the full zip; the update zip is preferred.
+                string url = "", full = "";
                 foreach (var a in doc.RootElement.GetProperty("assets").EnumerateArray())
-                    if ((a.GetProperty("name").GetString() ?? "").EndsWith("-win-x64.zip", StringComparison.OrdinalIgnoreCase))
-                        url = a.GetProperty("browser_download_url").GetString() ?? "";
+                {
+                    string name = a.GetProperty("name").GetString() ?? "";
+                    if (!name.EndsWith("-win-x64.zip", StringComparison.OrdinalIgnoreCase)) continue;
+                    string link = a.GetProperty("browser_download_url").GetString() ?? "";
+                    if (name.Contains("-update-", StringComparison.OrdinalIgnoreCase)) url = link; else full = link;
+                }
+                if (url == "") url = full;
                 Latest = (doc.RootElement.GetProperty("tag_name").GetString() ?? "").TrimStart('v', 'V');
                 assetUrl = url;
                 if (!IsNewer(Latest, current)) State = Status.UpToDate;
@@ -83,7 +89,7 @@ public class Updater
         State = Status.Downloading;
         Task.Run(async () =>
         {
-            string work = Path.Combine(Path.GetTempPath(), "SleepytimeAmbienceUpdate");
+            string work = Path.Combine(Path.GetTempPath(), "DrowseUpdate");
             try
             {
                 if (Directory.Exists(work)) Directory.Delete(work, true);
@@ -108,7 +114,7 @@ public class Updater
                 State = Status.Installing;
                 string unpacked = Path.Combine(work, "new");
                 ZipFile.ExtractToDirectory(zip, unpacked);
-                string exe = Directory.GetFiles(unpacked, "SleepytimeAmbience.exe", SearchOption.AllDirectories).FirstOrDefault()
+                string exe = Directory.GetFiles(unpacked, "Drowse.exe", SearchOption.AllDirectories).FirstOrDefault()
                     ?? throw new InvalidDataException("the download did not contain the app");
                 Swap(Path.GetDirectoryName(exe)!, AppDir);
                 State = Status.Restart;
@@ -171,7 +177,7 @@ public class Updater
     HttpClient Client()
     {
         var h = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        h.DefaultRequestHeaders.UserAgent.ParseAdd("SleepytimeAmbience/" + current);
+        h.DefaultRequestHeaders.UserAgent.ParseAdd("Drowse/" + current);
         h.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         return h;
     }

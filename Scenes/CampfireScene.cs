@@ -20,6 +20,13 @@ public class CampfireScene : Scene
     readonly (float x, float h, float w, float phase)[] pines;
     float t, glow = 1, glowTarget = 1, glowTimer;
 
+    // Tent cloth for this launch: (shaded side, side lit by the fire) in slate, olive, rust or plum.
+    static readonly (Color Dark, Color Lit)[] Tents =
+    {
+        (C(22, 32, 46), C(86, 62, 46)), (C(30, 40, 22), C(92, 82, 40)), (C(50, 26, 20), C(120, 62, 38)), (C(40, 26, 50), C(104, 58, 84)),
+    };
+    readonly (Color Dark, Color Lit) tent = Tents[Launch.Pick(Tents.Length)];
+
     public CampfireScene()
     {
         for (int i = 0; i < stars.Length; i++) stars[i] = (Rf(0, W), Rf(0, 235), Rf(0, 6.28f), Rf(0, 1) < 0.1f ? 2 : 1);
@@ -41,6 +48,16 @@ public class CampfireScene : Scene
         glow += (glowTarget - glow) * Math.Min(1, dt * 6);
     }
 
+    // Rare event: a shooting star crosses the sky, slowly and softly, over about two seconds.
+    protected override float RareLength => 2.4f;
+    Vector2 starPos, starDir;
+    protected override void OnRareStart()
+    {
+        starPos = new Vector2(Rf(80, 420), Rf(15, 90));
+        float a = Rf(0.35f, 0.7f), side = R.Next(2) == 0 ? 1 : -1;
+        starDir = new Vector2(MathF.Cos(a) * side, MathF.Sin(a));
+    }
+
     public override void Draw()
     {
         // Sky, with a faint band of the Milky Way across it
@@ -49,6 +66,12 @@ public class CampfireScene : Scene
         for (int i = 0; i < 9; i++)
             Raylib.DrawEllipse(150 + i * 55, 40 + i * 24, 120, 22, C(70, 80, 120, 9));
         Raylib.EndBlendMode();
+        if (RareT >= 0)
+        {
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            Streak(starPos + starDir * (100 * RareT), starDir, 44, 1.6f, C(235, 242, 255), 210 * MathF.Sin(MathF.PI * RareT / RareLength));
+            Raylib.EndBlendMode();
+        }
         foreach (var s in stars)
         {
             int a = (int)(120 + 110 * MathF.Sin(t * 1.1f + s.tw));
@@ -83,8 +106,8 @@ public class CampfireScene : Scene
         Raylib.EndBlendMode();
 
         // A small tent in the dark on the left, lit on the side facing the fire
-        Tri(new Vector2(40, 304), new Vector2(110, 304), new Vector2(75, 250), C(12, 18, 24));
-        Tri(new Vector2(75, 250), new Vector2(110, 304), new Vector2(84, 304), C(60, 40, 30, (int)(120 * glow)));
+        Tri(new Vector2(40, 304), new Vector2(110, 304), new Vector2(75, 250), tent.Dark);
+        Tri(new Vector2(75, 250), new Vector2(110, 304), new Vector2(84, 304), WithA(tent.Lit, 150 * glow));
 
         fire.Draw();
         Vignette(170);

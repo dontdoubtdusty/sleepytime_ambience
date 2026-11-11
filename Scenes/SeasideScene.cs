@@ -19,6 +19,10 @@ public class SeasideScene : Scene
     readonly Gull[] gulls = new Gull[3];
     float t;
 
+    // Lighthouse paint for this launch (red, navy, pine green, mustard).
+    static readonly Color[] Paints = { C(100, 38, 34), C(40, 62, 112), C(38, 84, 60), C(140, 108, 44) };
+    readonly Color paint = Paints[Launch.Pick(Paints.Length)];
+
     public SeasideScene()
     {
         for (int i = 0; i < stars.Length; i++) stars[i] = (Rf(0, W), Rf(0, 150), Rf(0, 6.28f));
@@ -36,6 +40,26 @@ public class SeasideScene : Scene
             gulls[i].X -= gulls[i].Speed * dt;
             if (gulls[i].X < -20) { gulls[i].X = W + 20; gulls[i].Y = Rf(50, 130); }
         }
+    }
+
+    // Rare event: the lights of a far ship slide along the horizon, one way or the other, over about 100 seconds.
+    const float ShipSpeed = 7;
+    protected override float RareLength => (W + 60) / ShipSpeed;
+    int shipDir = 1;
+    protected override void OnRareStart() => shipDir = R.Next(2) == 0 ? 1 : -1;
+
+    void DrawShip()
+    {
+        float x = (shipDir > 0 ? -30 : W + 30) + shipDir * ShipSpeed * RareT;
+        float y = Horizon;
+        Raylib.DrawRectangle((int)x - 7, (int)y - 3, 14, 3, C(10, 12, 22));      // hull
+        Raylib.DrawRectangle((int)x - 2, (int)y - 6, 4, 3, C(12, 14, 26));       // bridge
+        var side = shipDir > 0 ? C(255, 70, 60) : C(70, 255, 120);              // red or green side light, whichever faces us
+        Raylib.BeginBlendMode(BlendMode.Additive);
+        Glow(x, y - 7, 7, C(255, 240, 200, 150));                                // masthead light
+        Glow(x + shipDir * 5, y - 2, 5, WithA(side, 120));
+        Glow(x, y + 2, 12, C(255, 220, 160, 22));                                // faint reflection
+        Raylib.EndBlendMode();
     }
 
     public override void Draw()
@@ -60,6 +84,7 @@ public class SeasideScene : Scene
 
         // Sea with moving wave lines
         Raylib.DrawRectangleGradientV(0, Horizon, W, Shore - Horizon, C(18, 30, 60), C(8, 14, 30));
+        if (RareT >= 0) DrawShip();
         for (int r = 0; r < 14; r++)
         {
             float k = r / 13f;
@@ -87,8 +112,8 @@ public class SeasideScene : Scene
         // Rocks and lighthouse
         Tri(new Vector2(440, Shore + 6), new Vector2(520, 244), new Vector2(640, Shore + 6), C(16, 16, 24));
         Raylib.DrawRectangle(440, Shore - 20, 200, 30, C(14, 14, 22));
-        Tri(new Vector2(LampX - 22, 252), new Vector2(LampX - 14, 128), new Vector2(LampX + 14, 128), C(100, 38, 34));
-        Tri(new Vector2(LampX - 22, 252), new Vector2(LampX + 14, 128), new Vector2(LampX + 22, 252), C(100, 38, 34));
+        Tri(new Vector2(LampX - 22, 252), new Vector2(LampX - 14, 128), new Vector2(LampX + 14, 128), paint);
+        Tri(new Vector2(LampX - 22, 252), new Vector2(LampX + 14, 128), new Vector2(LampX + 22, 252), paint);
         for (int s = 0; s < 3; s++)
         {
             float y0 = 140 + s * 36;

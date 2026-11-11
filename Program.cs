@@ -3,9 +3,11 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Raylib_cs;
 
-// Sleepytime Ambience: procedural, fully offline ambient scenes.
-// Dev helper:  SleepytimeAmbience --shot <sceneIndex> <out.png>   renders a few seconds and saves a screenshot.
+// Drowse: procedural, fully offline ambient scenes.
+// Dev helper:  Drowse --shot <sceneIndex> <out.png>   renders a few seconds and saves a screenshot.
 
+var boot = System.Diagnostics.Stopwatch.StartNew();   // for --perf: where the start-up time goes
+void Lap(string what) { if (args.Contains("--perf")) Console.WriteLine($"  boot {boot.ElapsedMilliseconds,5} ms  {what}"); }
 string? shotPath = null;
 int shotScene = 0;
 for (int i = 0; i < args.Length; i++)
@@ -29,7 +31,7 @@ if (args.Contains("--bench"))
     // Random events: play each alone (all layers silent) and report its loudest sample.
     Array.Clear(b.Target);
     b.Smooth = 0.01f; for (int s = 0; s < 3; s++) b.Render(buf); // let the layers fade out first
-    foreach (Evt e in new[] { Evt.Chimes, Evt.Gull, Evt.Owl, Evt.Pop })
+    foreach (Evt e in new[] { Evt.Chimes, Evt.Gull, Evt.Owl, Evt.Pop, Evt.Hour })
     {
         b.PlayEvent(e);
         float ep = 0;
@@ -42,22 +44,25 @@ if (args.Contains("--bench"))
 var settings = Settings.Load();
 if (shotPath != null) { settings.Scene = shotScene; settings.TimerMinutes = 0; settings.StopAtMinutes = -1; settings.Fullscreen = false; }
 
-Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.VSyncHint);
+Raylib.SetConfigFlags(args.Contains("--perf") ? ConfigFlags.ResizableWindow : ConfigFlags.ResizableWindow | ConfigFlags.VSyncHint);
 // App version, shown in the window title; tools\make-release.ps1 reads it to name the zip.
-const string Version = "1.1.1";
-Raylib.InitWindow(1280, 720, $"Sleepytime Ambience {Version}");
+const string Version = "1.2.0";
+Raylib.InitWindow(1280, 720, $"Drowse {Version}");
+Lap("window open");
 // Window and taskbar icon (the exe's own icon comes from icon.ico in the project file).
 string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "icon.png");
 if (File.Exists(iconPath)) { var icon = Raylib.LoadImage(iconPath); Raylib.SetWindowIcon(icon); Raylib.UnloadImage(icon); }
 Raylib.SetExitKey(KeyboardKey.Null); // Esc opens the menu instead of closing the window
-Raylib.SetTargetFPS(60);
+Raylib.SetTargetFPS(args.Contains("--perf") ? 0 : 60);
 UiText.Load();
+Lap("font loaded");
 
 
 var audio = new AmbientAudio(openDevice: shotPath == null);
+Lap("sounds loaded");
 Scene[] scenes =
 {
-    new FireplaceScene(), new CabinScene(), new ForestScene(), new LibraryScene(audio), new TrainScene(),
+    new FireplaceScene(audio), new CabinScene(), new ForestScene(), new LibraryScene(audio), new TrainScene(),
     new SeasideScene(), new TentScene(), new SpaceScene(), new AquariumScene(), new CityScene(),
     new CampfireScene(), new HotSpringScene(), new AtticScene(), new KoiPondScene(),
 };
@@ -67,6 +72,7 @@ KeyboardKey[] sceneKeys =
     KeyboardKey.Six, KeyboardKey.Seven, KeyboardKey.Eight, KeyboardKey.Nine, KeyboardKey.Zero,
     KeyboardKey.F1, KeyboardKey.F2, KeyboardKey.F3, KeyboardKey.F4,
 };
+Lap("scenes built");
 int sceneIdx = Math.Clamp(settings.Scene, 0, scenes.Length - 1);
 int layerSel = 0;
 
@@ -75,9 +81,25 @@ Raylib.SetTextureFilter(target.Texture, TextureFilter.Bilinear);
 
 // Lo-fi look: a fragment shader applied when the scene picture is drawn to the window.
 var lofi = Raylib.LoadShader(null, Path.Combine(AppContext.BaseDirectory, "Assets", "lofi.fs"));
+Lap("shader loaded");
 bool lofiOk = Raylib.IsShaderValid(lofi);
 int lofiTime = Raylib.GetShaderLocation(lofi, "time");
 if (lofiOk) Raylib.SetShaderValue(lofi, Raylib.GetShaderLocation(lofi, "texSize"), new Vector2(Gfx.W, Gfx.H), ShaderUniformDataType.Vec2);
+
+if (args.Contains("--animals"))
+{
+    int ai = Array.IndexOf(args, "--animals");
+    AnimalLab.Run(scenes, target, ai + 1 < args.Length ? args[ai + 1] : "animals.png");
+    Raylib.CloseWindow();
+    return;
+}
+
+if (args.Contains("--perf"))
+{
+    Perf.Run(scenes, target, (r, t) => DrawShaded(r, t), () => ForceOpaque(Gfx.W, Gfx.H));
+    Raylib.CloseWindow();
+    return;
+}
 
 if (shotPath == null) PreventSleep(true);
 var windowedRect = (X: 100, Y: 100, W: 1280, H: 720); // where the normal window goes back to when leaving fullscreen
@@ -90,7 +112,9 @@ float timerRemaining = 0, timerTotal = 0;
 float nightT = 0; // seconds since night drift was switched on
 const float NightSecs = 9000f; // night drift takes 2.5 hours to reach its full effect
 float[] evLeft = Array.Empty<float>(); // seconds until each random sound event of the current scene
+int lastClockHour = -1; // the hour the clocks showed last frame (-1 until the first frame)
 float idle = 0, sceneFade = 1, helpOn = 0;
+float quitAfter = float.TryParse(Environment.GetEnvironmentVariable("SLEEPY_QUIT_AFTER"), out var qa) ? qa : 0; // test only: close by itself after this many seconds, so settings and audio shutdown can be checked
 bool showHelp = false, quit = false;
 
 // Scene changes fade to black, switch, then fade back in. Auto-rotate uses slower fades.
@@ -116,6 +140,8 @@ if (launchCheck) updater.Check(4000);
 if (args.Contains("--updated")) { msgText = $"Updated to version {Version}"; msg = 6f; }
 float toastT = -1, menuOn = 0; // seconds the pop-up has been showing (-1 = not yet); menu fade 0..1
 bool toastDone = false;
+// Opening screen (a slow brush circle and a calm line). Off for tests; SLEEPY_SHOT_UI=intro shows it in a --shot.
+var intro = new Intro((shotPath == null && Environment.GetEnvironmentVariable("SLEEPY_NO_INTRO") == null) || Environment.GetEnvironmentVariable("SLEEPY_SHOT_UI") == "intro");
 string[] credits = Menu.LoadCredits();
 bool testInstall = Environment.GetEnvironmentVariable("SLEEPY_TEST_INSTALL") != null; // test only: install an update as soon as one is found
 string? shotUi = shotPath != null ? Environment.GetEnvironmentVariable("SLEEPY_SHOT_UI") : null;
@@ -234,6 +260,7 @@ void CycleRotate()
     settings.Save();
 }
 void ToggleLofi() { settings.Lofi = !settings.Lofi; settings.Save(); }
+void ToggleRealTime() { settings.RealTime = !settings.RealTime; lastClockHour = -1; settings.Save(); } // lastClockHour: no chime for the jump
 // Switches between a normal window and a borderless window filling the current monitor.
 // Done by hand because raylib's ToggleBorderlessWindowed uses true fullscreen, which Windows keeps on top of everything (no alt-tab).
 void ToggleFullscreen()
@@ -269,7 +296,7 @@ var panel = new PanelModel
     SetLayer = (i, v) => { Vols()[i] = v; ApplyScene(); },
     CycleTimer = CycleTimer, CycleStopAt = CycleStopAt, NudgeStopAt = NudgeStopAt, CycleDim = CycleDim, CycleRotate = CycleRotate,
     ToggleShuffle = ToggleShuffle, ToggleEvents = ToggleEvents, ToggleDrift = ToggleDrift, ToggleRotation = ToggleRotation,
-    ToggleLofi = ToggleLofi, ToggleFullscreen = ToggleFullscreen,
+    ToggleLofi = ToggleLofi, ToggleRealTime = ToggleRealTime, ToggleFullscreen = ToggleFullscreen,
     OpenMenu = () => Menu.Open(), OpenUpdates = () => Menu.Open(updates: true),
     HidePanel = () => { settings.PanelHidden = true; settings.Save(); },
     Commit = () => settings.Save(),
@@ -299,8 +326,8 @@ while (!Raylib.WindowShouldClose() && !quit)
     if (Raylib.IsKeyPressed(KeyboardKey.Escape)) { Menu.HandleEsc(); touched = true; }
     // While the menu is open, Key and KeyStep ignore the app shortcuts (the menu reads its own keys).
     for (int k = 0; k < sceneKeys.Length && k < scenes.Length; k++)
-        if (Key(sceneKeys[k])) { RequestScene(k, false); touched = true; }
-    if (Key(KeyboardKey.Tab)) { RequestScene((pendingScene >= 0 ? pendingScene : sceneIdx) + 1, false); touched = true; }
+        if (Key(sceneKeys[k])) RequestScene(k, false); // not "touched": switching scenes should not pop the panel up
+    if (Key(KeyboardKey.Tab)) RequestScene((pendingScene >= 0 ? pendingScene : sceneIdx) + 1, false);
 
     var sc2 = scenes[sceneIdx];
     if (Key(KeyboardKey.Left)) { layerSel = (layerSel + sc2.Layers.Length - 1) % sc2.Layers.Length; touched = true; }
@@ -328,6 +355,7 @@ while (!Raylib.WindowShouldClose() && !quit)
     if (Key(KeyboardKey.N)) { ToggleDrift(); touched = true; }
     if (Key(KeyboardKey.F) || Key(KeyboardKey.F11)) { ToggleFullscreen(); touched = true; }
     if (Key(KeyboardKey.L)) { ToggleLofi(); touched = true; }
+    if (Key(KeyboardKey.C)) { ToggleRealTime(); touched = true; }
     if (Key(KeyboardKey.H)) { showHelp = !showHelp; touched = true; }
     if (Key(KeyboardKey.P)) { settings.PanelHidden = !settings.PanelHidden; settings.Save(); touched = true; }
     if (Key(KeyboardKey.F12)) saveShot = true; // not "touched": the panel should not pop into the picture
@@ -353,11 +381,22 @@ while (!Raylib.WindowShouldClose() && !quit)
     float nd = Math.Clamp(nightT / NightSecs, 0, 1);
     nd = nd * nd * (3 - 2 * nd);
     audio.Master = settings.Master * (1 - 0.6f * nd);
-    audio.Fade = fade;
+    if (!intro.Done) intro.Update(dt, Raylib.GetKeyPressed() != 0 || Raylib.IsMouseButtonPressed(MouseButton.Left));
+    audio.Fade = fade * intro.Level;
     audio.EventLevel = settings.EventsOn ? 1f : 0f;
 
+    // Clocks: all show the same time (real, or a random start that then runs normally). A scene with a striking clock
+    // chimes when the face reaches a new hour (not at launch), if sound events are on.
+    Clocks.RealTime = settings.RealTime;
+    int clockHour = Clocks.Hour;
+    if (clockHour != lastClockHour)
+    {
+        if (lastClockHour >= 0 && settings.EventsOn && intro.Done && scenes[sceneIdx].Chimes) audio.PlayHour(clockHour % 12 == 0 ? 12 : clockHour % 12);
+        lastClockHour = clockHour;
+    }
+
     // ---- simulate ----
-    scenes[sceneIdx].Update(dt);
+    scenes[sceneIdx].Step(dt);
 
     // Random sound events: each counts down and plays its sound, then waits a new random time.
     var evs = scenes[sceneIdx].Events;
@@ -376,6 +415,7 @@ while (!Raylib.WindowShouldClose() && !quit)
     else if (sceneFade > fadeTarget) sceneFade = Math.Max(fadeTarget, sceneFade - dt * fadeInSpeed);
     if (pendingScene >= 0 && sceneFade >= 1)
     {
+        scenes[sceneIdx].EndRare();
         sceneIdx = pendingScene; pendingScene = -1; fadeTarget = 0;
         settings.Scene = sceneIdx; settings.Save();
         if (Environment.GetEnvironmentVariable("SLEEPY_AUDIO_STATS") != null) Console.WriteLine($"SCENE {sceneIdx} {scenes[sceneIdx].Name}");
@@ -385,6 +425,7 @@ while (!Raylib.WindowShouldClose() && !quit)
     helpOn += ((showHelp ? 1 : 0) - helpOn) * Math.Min(1, dt * 8);
     menuOn += ((Menu.IsOpen ? 1 : 0) - menuOn) * Math.Min(1, dt * 8);
     if (updater.State == Updater.Status.Restart) quit = true; // an update finished installing
+    if (quitAfter > 0 && Raylib.GetTime() > quitAfter) quit = true; // test only
     // The new-version pop-up: once per launch, after the launch check, unless that version was skipped.
     if (toastT < 0 && !toastDone && launchCheck && updater.Available && updater.Latest != settings.SkipVersion)
     {
@@ -395,13 +436,14 @@ while (!Raylib.WindowShouldClose() && !quit)
     if (toastT >= 0 && !toastDone) { toastT += dt; if (toastT > ToastHold + 2.5f) toastDone = true; }
 
     // ---- render scene to low-res target ----
+    scenes[sceneIdx].PrepareSprites();
     Raylib.BeginTextureMode(target);
     Raylib.ClearBackground(Color.Black);
     scenes[sceneIdx].Draw();
     ForceOpaque(Gfx.W, Gfx.H);
     Raylib.EndTextureMode();
 
-    if (shotPath != null && ++shotFrames >= 150)
+    if (shotPath != null && ++shotFrames >= (shotUi == "intro" ? 100 : 150))
     {
         // Screenshot the final picture (with the shader), not just the raw scene texture.
         var shot = Raylib.LoadRenderTexture(1280, 720);
@@ -409,9 +451,10 @@ while (!Raylib.WindowShouldClose() && !quit)
         Raylib.ClearBackground(Color.Black);
         DrawShaded(new Rectangle(0, 0, 1280, 720), shotFrames / 30f);
         RefreshPanel();
-        ControlPanel.Draw(panel, 1280, 720, 1f);
+        if (Environment.GetEnvironmentVariable("SLEEPY_SHOT_NOPANEL") == null) ControlPanel.Draw(panel, 1280, 720, 1f); // test only: SLEEPY_SHOT_NOPANEL=1 leaves the panel out of the picture
         // Test only: SLEEPY_SHOT_UI=main|guide|shortcuts|updates|about|reset draws that menu page, =toast the update pop-up.
         if (shotUi == "toast") Menu.DrawToast("1.1", 1280, 720, 1f);
+        else if (shotUi == "intro") intro.Draw(1280, 720);
         else if (shotUi != null) { Menu.OpenPage(shotUi); RefreshMenu(); Menu.Draw(menu, 1280, 720, 1f); }
         ForceOpaque(1280, 720);
         Raylib.EndTextureMode();
@@ -438,7 +481,8 @@ while (!Raylib.WindowShouldClose() && !quit)
     // Clickable panel (fades in on input) and the keyboard help overlay.
     float panelAlpha = Math.Clamp(1 - (idle - 3f) / 1f, 0, 1) * (1 - menuOn);
     RefreshPanel();
-    if (settings.PanelHidden)
+    if (intro.Covering) { }
+    else if (settings.PanelHidden)
     {
         // Panel switched off: only a faint reminder shows when something is touched.
         UiText.Draw("P: show controls", 20 * sh / 720f, 20 * sh / 720f, 15 * sh / 720f, new Color(255, 240, 215, (int)(panelAlpha * 110)));
@@ -467,6 +511,7 @@ while (!Raylib.WindowShouldClose() && !quit)
     }
     RefreshMenu();
     Menu.Draw(menu, sw, sh, menuOn);
+    intro.Draw(sw, sh);
     // Blending leaves the window partly transparent, which Windows screenshot tools capture as black; make it opaque.
     ForceOpaque(sw, sh);
     Raylib.EndDrawing();
@@ -494,8 +539,8 @@ static void ForceOpaque(int w, int h)
     Rlgl.ColorMask(true, true, true, true);
 }
 
-// Where F12 screenshots go: PicturesSleepytime Ambience.
-static string ScreenshotDir() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Sleepytime Ambience");
+// Where F12 screenshots go: PicturesDrowse.
+static string ScreenshotDir() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Drowse");
 
 // Opens a folder in File Explorer (creating it first) and a web page in the default browser.
 static void OpenFolder(string dir)
@@ -528,7 +573,7 @@ void RefreshMenu()
     menu.CheckAtLaunch = settings.CheckUpdates;
 }
 
-// Saves what is on screen right now as a PNG in Pictures\Sleepytime Ambience, and sets the message to show.
+// Saves what is on screen right now as a PNG in Pictures\Drowse, and sets the message to show.
 void SaveScreenshot()
 {
     try
@@ -539,7 +584,7 @@ void SaveScreenshot()
         var img = Raylib.LoadImageFromScreen();
         bool ok = Raylib.ExportImage(img, file);
         Raylib.UnloadImage(img);
-        msgText = ok ? @"Screenshot saved to Pictures\Sleepytime Ambience" : "Screenshot could not be saved";
+        msgText = ok ? @"Screenshot saved to Pictures\Drowse" : "Screenshot could not be saved";
     }
     catch (Exception ex) { msgText = "Screenshot could not be saved: " + ex.Message; }
     msg = 3f;
@@ -585,6 +630,7 @@ void RefreshPanel()
     panel.ShuffleText = "Shuffle: " + (settings.RotateShuffle ? "on" : "off");
     panel.EventsText = "Sound events: " + (settings.EventsOn ? "on" : "off");
     panel.DriftText = "Night drift: " + (settings.NightDrift ? "on" : "off");
+    panel.RealTimeText = "Real time: " + (settings.RealTime ? "on" : "off");
     panel.InRotation = Enumerable.Range(0, scenes.Length).Select(InRotation).ToArray();
     panel.LofiOn = settings.Lofi;
     panel.UpdateNote = updater.Available ? $"Version {updater.Latest} is ready. Click here to update." : "";
@@ -636,12 +682,26 @@ class Settings
     public List<string> RotateScenes { get; set; } = new(); // scenes auto-rotate uses (empty = all)
     public bool EventsOn { get; set; } = true;
     public bool NightDrift { get; set; }
+    public bool RealTime { get; set; } // clocks show the real local time (off: they start at a random time and run from there)
     public bool CheckUpdates { get; set; } = true; // look for a new version at launch
     public string SkipVersion { get; set; } = ""; // a version the user chose to skip in the pop-up
     public Dictionary<string, float[]> LayerVolumes { get; set; } = new();
 
     static string PathFile => System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SleepytimeAmbience", "settings.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Drowse", "settings.json");
+
+    // The app used to be called Sleepytime Ambience; the first run under the new name carries the old settings over.
+    static void MigrateOldSettings()
+    {
+        try
+        {
+            string old = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SleepytimeAmbience", "settings.json");
+            if (File.Exists(PathFile) || !File.Exists(old)) return;
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PathFile)!);
+            File.Copy(old, PathFile);
+        }
+        catch { }
+    }
 
     public float[] GetVolumes(Scene sc)
     {
@@ -652,7 +712,8 @@ class Settings
 
     public static Settings Load()
     {
-        try { return JsonSerializer.Deserialize<Settings>(File.ReadAllText(PathFile)) ?? new Settings(); }
+        MigrateOldSettings();
+        try { return JsonSerializer.Deserialize(File.ReadAllText(PathFile), SettingsJson.Default.Settings) ?? new Settings(); }
         catch { return new Settings(); }
     }
 
@@ -661,8 +722,13 @@ class Settings
         try
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PathFile)!);
-            File.WriteAllText(PathFile, JsonSerializer.Serialize(this));
+            File.WriteAllText(PathFile, JsonSerializer.Serialize(this, SettingsJson.Default.Settings));
         }
         catch { }
     }
 }
+
+// Source-generated JSON code for Settings: the compiler writes the reading and writing code ahead of time,
+// so it keeps working when the published build is trimmed (reflection-based JSON would not).
+[System.Text.Json.Serialization.JsonSerializable(typeof(Settings))]
+internal partial class SettingsJson : System.Text.Json.Serialization.JsonSerializerContext { }

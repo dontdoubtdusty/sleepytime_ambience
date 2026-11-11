@@ -13,7 +13,9 @@ public static class UiText
         string path = Path.Combine(AppContext.BaseDirectory, "Assets", "Lora.ttf");
         if (!File.Exists(path)) { font = Raylib.GetFontDefault(); return; }
         // Rasterized large and drawn smaller, with smooth filtering, so every size stays crisp.
-        font = Raylib.LoadFontEx(path, 64, null, 0);
+        // Basic Latin plus the few extra letters and dashes the quotes use (o with two dots, en and em dash).
+        var glyphs = Enumerable.Range(32, 95).Concat(new[] { 0xF6, 0x2013, 0x2014 }).ToArray();
+        font = Raylib.LoadFontEx(path, 64, glyphs, glyphs.Length);
         Raylib.SetTextureFilter(font.Texture, TextureFilter.Bilinear);
         loaded = true;
     }

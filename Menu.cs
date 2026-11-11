@@ -47,6 +47,7 @@ public static class Menu
         ("F / F11", "fullscreen"),
         ("F12", "save a screenshot to Pictures"),
         ("L", "lo-fi look on / off"),
+        ("C", "clocks show the real time on / off (off: a random start time)"),
         ("P", "hide or show the control panel"),
         ("H", "toggle the shortcut list"),
         ("Esc", "menu: guide, updates, quit"),
@@ -56,7 +57,7 @@ public static class Menu
     static readonly (string Title, string Body)[] Guide =
     {
         ("Welcome",
-         "Sleepytime Ambience plays a cozy scene with soft sounds, all from your own computer, so it never stops when the internet drops.\n\n" +
+         "Drowse plays a cozy scene with soft sounds, all from your own computer, so it never stops when the internet drops.\n\n" +
          "Pick a scene, set a timer, and let it run while you fall asleep.\n\n" +
          "Move the mouse to bring up the control panel. It hides itself again after a few seconds."),
         ("Scenes and sounds",
@@ -130,7 +131,7 @@ public static class Menu
         switch (page)
         {
             case Page.Main:
-                Text("Sleepytime Ambience", fs * 1.6f, Warm, 0.95f);
+                Text("Drowse", fs * 1.6f, Warm, 0.95f);
                 Text($"Version {m.Version}", small, Warm, 0.5f);
                 y += 10 * s;
                 buttons.Add(("Resume", () => IsOpen = false));
@@ -184,7 +185,7 @@ public static class Menu
                 break;
 
             case Page.About:
-                Text($"Sleepytime Ambience {m.Version}", fs * 1.6f, Warm, 0.95f);
+                Text($"Drowse {m.Version}", fs * 1.6f, Warm, 0.95f);
                 Para("Cozy lo-fi scenes and real recorded sounds for falling asleep. Everything runs from your own computer, " +
                      "so it never stops when the internet drops.", fs, 0.85f);
                 y += 6 * s;

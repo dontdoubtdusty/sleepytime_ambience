@@ -1,4 +1,4 @@
-# Sleepytime Ambience: Plan
+# Drowse: Plan
 
 **One home per fact.** `vision.md` holds the design (what the app is and does). This doc holds, for open steps only, the build sketch, the questions to ask and the checks, plus the code patterns, asset sources and backlog. When a step is built, cut its section down to what later steps need.
 
@@ -40,6 +40,22 @@ Lo-fi shader, noise layers, auto-rotate, mouse control panel, sleeping cat, six 
 2. Tune the shader and scene looks by eye (`Assets/lofi.fs`).
 3. Longer waves recording if the repeat bothers (see section 4).
 4. Decide the open questions in `vision.md` (timer end, shuffle, day and night).
+
+### Backlog: "personality" wave (owner, Nov 11; nothing built yet, do when there is usage to spare)
+Order the owner gave: items 1 to 5 together, then the efficiency pass (6), then fixes (7), then the rename (8). Ask a question round before each item (clickable choices, per CLAUDE.md); the owner wants questions throughout.
+1. **One randomized element per scene, chosen at each launch.** Simple and visible: tent colour, what the planet looks like, and so on. One predetermined element per scene, picked from a short list, held for the whole run.
+2. **One rare event per scene.** Not in your face, a nice surprise now and then. Plugs into the existing sound `Events` countdown in `Program.cs` where it has a sound, otherwise a visual-only timer in the scene.
+   - Built (3a): campfire shooting star, space comet, hot spring aurora, seaside ship lights, city fireworks, aquarium turtle, koi dragonfly. 3b also built: fireplace log and sparks, cabin fox, forest rabbit, library moth, train station with clock, tent raccoon, attic bat. All animals are drawn through `Sprites.cs`. Timer: `Scene.Step` in `Scenes/Scene.cs` (an event every 7 to 23 minutes, first after 2.5 to 8). Test: `SLEEPY_RARE_SECS=n` and `SLEEPY_RARE_SPEED=k`.
+3. **Zen loading screen with a calming quote.** Picking the randomized elements is near-instant, so no progress bar: a short breathing-style animation (for example ink or ripples settling) with one quote, eased in and out, a few seconds at most. Questions to ask: quote source (a short written list vs. none), length on screen, whether it also plays at each scene switch.
+4. **More clocks, one fitting each scene that suits one.** The clock must match the scene (grandfather clock in the fireplace scene, desk clock stays in the library, and so on). Needs a new grandfather-clock tick sound with a soft, subtle hourly chime (real recording, add to `Assets/CREDITS.md`). Clocks are always present; real time is an option. With real time off, each clock starts at a random time at launch and then runs in real time, so the viewer never has to see the actual time. The library clock currently always shows real time, so it changes too. Questions to ask: which scenes get a clock, whether the chime follows the displayed time, one shared option for all clocks.
+5. **Holiday themes, subtle.** Small touches on the day itself (Halloween, Thanksgiving, Christmas and similar), for example a carved pumpkin on the cabin sill or lights on a tree. Questions to ask: which holidays, whether to add an override to preview a date, whether a theme replaces the launch-time random element or adds to it. Needs a date check at launch only.
+6. **Efficiency pass** after 1 to 5 (report first, owner decides merges, per CLAUDE.md). Also check the loading screen and new clock sounds against the audio-thread rules.
+7. **Scene fixes:**
+   - Fireplace cat reads as a small dinosaur: lean all the way into a cat-like little dinosaur (owner approves).
+   - Koi do not look like koi: redraw (body shape, fins, tail, orange/white/black patches).
+   - Night train looks empty inside: add passengers or seat silhouettes and warm light so the carriage looks lived in.
+   - Seaside waves (owner, Nov 11, "least favorite scene"): the waves clip is about 12 s, so it repeats audibly and is not relaxing. Find a much longer, softer sea recording (or build the loop from several recordings), then re-check with the layering. Do right after step 2.
+8. **Rename the app. DONE (Nov 11): the app is now Drowse** (title, assembly, settings folder with migration from the old one, Desktop shortcut, release script). Still open: the GitHub repo and local folder are still `sleepytime_ambience`; old 1.1.1 copies cannot self-update into Drowse (they look for the old exe name), so friends need one manual download. Original notes:  Brainstorm with the owner: relaxing theme, impactful. Round 1 (Nov 11): tone chosen "soft and sleepy"; shortlist was Hushlight, Lullwater, Drowse, Nightlull, Slumberlight, Softhour; owner's favorite is **Drowse** (not final). Still to do: check the name is free (GitHub, web), decide how it appears in the title and icon, then rename. A rename touches the window title, assembly name (`Drowse`), the Desktop shortcut, the settings folder (`%APPDATA%\Drowse`, which would orphan saved settings unless migrated), the GitHub repo, the in-app updater and the release zip name.
 
 ### Ideas (not scheduled)
 - Auto-rotate that shuffles; a gentle sunrise wake-up; a dim corner clock; day and night drift in the cabin and forest; a phone-sized remote; a pixel font for the HUD.

@@ -11,7 +11,7 @@ public class PanelModel
     public float Master;
     public (string Label, float Value)[] Layers = Array.Empty<(string, float)>();
     public int LayerSel;
-    public string TimerText = "", StopText = "", DimText = "", RotateText = "", ShuffleText = "", EventsText = "", DriftText = "";
+    public string TimerText = "", StopText = "", DimText = "", RotateText = "", ShuffleText = "", EventsText = "", DriftText = "", RealTimeText = "";
     public bool[] InRotation = Array.Empty<bool>();
     public bool LofiOn;
 
@@ -19,7 +19,7 @@ public class PanelModel
     public Action<float> SetMaster = _ => { };
     public Action<int, float> SetLayer = (_, _) => { };
     public Action CycleTimer = () => { }, CycleStopAt = () => { }, NudgeStopAt = () => { }, CycleDim = () => { }, CycleRotate = () => { };
-    public Action ToggleShuffle = () => { }, ToggleEvents = () => { }, ToggleDrift = () => { };
+    public Action ToggleShuffle = () => { }, ToggleEvents = () => { }, ToggleDrift = () => { }, ToggleRealTime = () => { };
     /// <summary>Right-click on a scene button: add or remove that scene from auto-rotate.</summary>
     public Action<int> ToggleRotation = _ => { };
     public Action HidePanel = () => { };
@@ -41,7 +41,7 @@ public static class ControlPanel
     public static bool Draw(PanelModel m, int sw, int sh, float alpha)
     {
         if (alpha <= 0.01f) { dragId = -1; return false; }
-        const int OptionCount = 10;
+        const int OptionCount = 11;
         int sceneRows = (m.SceneNames.Length + 1) / 2, optRows = (OptionCount + 1) / 2;
         // Panel height at a given scale; the scale shrinks when the panel would not fit the window.
         float Height(float sc)
@@ -64,7 +64,7 @@ public static class ControlPanel
         Raylib.DrawRectangleRounded(panel, 0.03f, 8, new Color(10, 6, 3, (int)(alpha * 200)));
         float x = panel.X + pad, w = pw - 2 * pad, y = panel.Y + pad;
 
-        UiText.Draw("Sleepytime Ambience", x, y, (int)(fs * 1.2f), A(Warm, alpha, 0.9f));
+        UiText.Draw("Drowse", x, y, (int)(fs * 1.2f), A(Warm, alpha, 0.9f));
         var hideBtn = new Rectangle(x + w - 84 * s, y - 2 * s, 84 * s, fs * 1.6f);
         if (Button(hideBtn, "Hide (P)", false, alpha, live, fs) == 1) m.HidePanel();
         y += fs * 1.9f;
@@ -95,8 +95,8 @@ public static class ControlPanel
         y += pad;
 
         // Option buttons, two per row
-        string[] labels = { m.TimerText, m.StopText, m.DimText, m.RotateText, m.ShuffleText, m.EventsText, m.DriftText, "Lo-fi: " + (m.LofiOn ? "on" : "off"), "Fullscreen", "Menu (Esc)" };
-        Action[] actions = { m.CycleTimer, m.CycleStopAt, m.CycleDim, m.CycleRotate, m.ToggleShuffle, m.ToggleEvents, m.ToggleDrift, m.ToggleLofi, m.ToggleFullscreen, m.OpenMenu };
+        string[] labels = { m.TimerText, m.StopText, m.DimText, m.RotateText, m.ShuffleText, m.EventsText, m.DriftText, "Lo-fi: " + (m.LofiOn ? "on" : "off"), m.RealTimeText, "Fullscreen", "Menu (Esc)" };
+        Action[] actions = { m.CycleTimer, m.CycleStopAt, m.CycleDim, m.CycleRotate, m.ToggleShuffle, m.ToggleEvents, m.ToggleDrift, m.ToggleLofi, m.ToggleRealTime, m.ToggleFullscreen, m.OpenMenu };
         for (int i = 0; i < labels.Length; i++)
         {
             var r = new Rectangle(x + (i % 2) * (bw + gap), y + (i / 2) * (btnH + gap), bw, btnH);

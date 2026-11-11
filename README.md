@@ -1,4 +1,4 @@
-# Sleepytime Ambience
+# Drowse
 
 Cozy lo-fi ambient scenes for falling asleep, fully offline. The pictures are drawn live and the sounds are
 recordings stored on disk, so nothing streams and nothing stops when the internet drops. Fourteen scenes, each with
@@ -8,15 +8,15 @@ its own mix of sound layers, plus a sleep timer, screen dimming and auto-rotate.
 
 ## Install (Windows 10 or 11)
 
-1. On the [Releases page](https://github.com/dontdoubtdusty/sleepytime_ambience/releases/latest), download `SleepytimeAmbience-<version>-win-x64.zip`.
+1. On the [Releases page](https://github.com/dontdoubtdusty/sleepytime_ambience/releases/latest), download `Drowse-<version>-win-x64.zip`.
 2. Right-click the zip, choose **Extract All...**, then **Extract**. Running it from inside the zip will not work.
-3. Open the extracted folder and double-click `SleepytimeAmbience.exe`.
+3. Open the extracted folder and double-click `Drowse.exe`.
 4. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway** (once only).
 
 Updates: when a new version is out, a note appears shortly after starting. Click **Update** and it installs and
 restarts by itself; settings are kept.
 
-Uninstall: delete the folder, and `%APPDATA%\SleepytimeAmbience` to remove settings.
+Uninstall: delete the folder, and `%APPDATA%\Drowse` to remove settings.
 
 ## Usage
 
@@ -33,7 +33,8 @@ updates, screenshots folder, reset settings, quit) and H for the full shortcut l
 | F / F11 | Fullscreen |
 | R | Auto-rotate scenes |
 | N | Night drift: slowly dims and quiets over 2.5 hours |
-| F12 | Save a screenshot to `Pictures\Sleepytime Ambience` |
+| C | Clocks: real time on or off (off starts at a random time) |
+| F12 | Save a screenshot to `Pictures\Drowse` |
 
 ## Known limits
 

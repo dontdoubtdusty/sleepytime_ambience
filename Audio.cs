@@ -2,10 +2,10 @@ using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using Raylib_cs;
 
-public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock, Brown, Pink, Waves, Train, Hum, Bubbles, Underwater, Purr, Water }
+public enum Layer { Rumble, Crackle, Wind, Rain, Crickets, Birds, Thunder, Clock, Brown, Pink, Waves, Train, Hum, Bubbles, Underwater, Purr, Water, Grandfather, TentRain, RoofRain }
 
 /// <summary>Short sounds a scene can play now and then (random sound events).</summary>
-public enum Evt { Chimes, Gull, Owl, Pop, Thunder, Notify } // Notify: the soft kalimba for the update pop-up
+public enum Evt { Chimes, Gull, Owl, Pop, Thunder, Notify, Hour } // Notify: the soft kalimba for the update pop-up
 
 /// <summary>
 /// Ambient audio mixer. Each layer plays a real (CC0) recording from the Assets folder,
@@ -15,7 +15,7 @@ public enum Evt { Chimes, Gull, Owl, Pop, Thunder, Notify } // Notify: the soft 
 public unsafe class AmbientAudio : ISampleProvider, IDisposable
 {
     const int Rate = 48000;
-    const int LayerCount = 17;
+    const int LayerCount = 20;
 
     public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(Rate, 2);
 
@@ -59,21 +59,26 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     public AmbientAudio(bool openDevice = true)
     {
         string dir = Path.Combine(AppContext.BaseDirectory, "Assets");
-        Load(Layer.Crackle, Path.Combine(dir, "fire.wav"), 0.16f, 0.5f);
-        Load(Layer.Rain, Path.Combine(dir, "rain.ogg"), 0.13f, 1.0f);
-        Load(Layer.Wind, Path.Combine(dir, "wind.ogg"), 0.12f, 1.0f);
-        Load(Layer.Crickets, Path.Combine(dir, "crickets.mp3"), 0.11f, 0.15f);
-        Load(Layer.Birds, Path.Combine(dir, "forest.mp3"), 0.12f, 1.5f);
-        Load(Layer.Clock, Path.Combine(dir, "clock.wav"), 0f, 0f, peak: 0.35f);
-        Load(Layer.Waves, Path.Combine(dir, "waves.ogg"), 0.14f, 1.0f);
-        Load(Layer.Train, Path.Combine(dir, "train.ogg"), 0.12f, 1.5f);
-        Load(Layer.Hum, Path.Combine(dir, "hum.mp3"), 0.10f, 1.5f);
-        Load(Layer.Bubbles, Path.Combine(dir, "bubbles.wav"), 0.10f, 0.3f);
-        Load(Layer.Underwater, Path.Combine(dir, "underwater.mp3"), 0.10f, 2.0f);
-        Load(Layer.Purr, Path.Combine(dir, "purr.ogg"), 0.10f, 0.5f);
-        Load(Layer.Water, Path.Combine(dir, "water.wav"), 0.10f, 1.5f);
-        LoadEvents(dir);
-        LoadThunder(Path.Combine(dir, "thunder.ogg"));
+        // Every recording is decoded at the same time on separate cores (each writes only its own layer slot), which cuts the start-up wait.
+        Parallel.Invoke(
+        () => Load(Layer.Crackle, Path.Combine(dir, "fire.mp3"), 0.16f, 0.5f),
+        () => Load(Layer.Rain, Path.Combine(dir, "rain.ogg"), 0.13f, 1.0f),
+        () => Load(Layer.Wind, Path.Combine(dir, "wind.mp3"), 0.12f, 3.0f), // 50 s of wind in leaves, softened (low-passed); not layered
+        () => Load(Layer.Crickets, Path.Combine(dir, "crickets.mp3"), 0.11f, 0.15f),
+        () => Load(Layer.Birds, Path.Combine(dir, "forest.mp3"), 0.12f, 1.5f),
+        () => Load(Layer.Clock, Path.Combine(dir, "clock.wav"), 0f, 0f, peak: 0.35f),
+        () => Load(Layer.Waves, Path.Combine(dir, "waves.mp3"), 0.14f, 4.0f), // a 4.4 minute recording, so no layering is needed
+        () => Load(Layer.Train, Path.Combine(dir, "train.ogg"), 0.12f, 1.5f),
+        () => Load(Layer.Hum, Path.Combine(dir, "hum.mp3"), 0.10f, 1.5f),
+        () => Load(Layer.Bubbles, Path.Combine(dir, "bubbles.wav"), 0.10f, 0.3f),
+        () => Load(Layer.Underwater, Path.Combine(dir, "underwater.mp3"), 0.10f, 2.0f),
+        () => Load(Layer.Purr, Path.Combine(dir, "purr.ogg"), 0.10f, 0.5f),
+        () => Load(Layer.Water, Path.Combine(dir, "water.mp3"), 0.10f, 1.5f),
+        () => Load(Layer.Grandfather, Path.Combine(dir, "grandfather.wav"), 0f, 0f, peak: 0.3f),
+        () => Load(Layer.TentRain, Path.Combine(dir, "tent_rain.mp3"), 0.13f, 3.0f), // rain heard from inside a real tent, 94 s
+        () => Load(Layer.RoofRain, Path.Combine(dir, "roof_rain.mp3"), 0.12f, 2.0f), // rain on a metal roof, 39 s
+        () => LoadEvents(dir),
+        () => LoadThunder(Path.Combine(dir, "thunder.ogg")));
 
         if (!openDevice) return;
         try
@@ -82,7 +87,11 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
             output.Init(this);
             output.Play();
         }
-        catch { output = null; } // no audio device: run silently
+        catch (Exception ex)
+        {
+            output = null; // no audio device: run silently
+            if (Environment.GetEnvironmentVariable("SLEEPY_AUDIO_STATS") != null) Console.WriteLine("AUDIO OPEN FAILED: " + ex);
+        }
     }
 
     /// <summary>Decode any wav/ogg/mp3 to mono float at our sample rate.</summary>
@@ -198,11 +207,11 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     }
     public long Reads, FramesRead; public double MaxReadMs;
 
-    static readonly Layer[] RecordedOnly = { Layer.Waves, Layer.Train, Layer.Hum, Layer.Bubbles, Layer.Underwater, Layer.Purr, Layer.Water };
+    static readonly Layer[] RecordedOnly = { Layer.Waves, Layer.Train, Layer.Hum, Layer.Bubbles, Layer.Underwater, Layer.Purr, Layer.Water, Layer.Grandfather, Layer.TentRain, Layer.RoofRain };
 
     // Layers whose short loop is played twice, the second copy half a loop away and a little slower,
     // so the two drift against each other and the repeat is hard to notice.
-    static readonly bool[] Layered = MakeLayered(Layer.Waves, Layer.Crickets, Layer.Wind, Layer.Underwater, Layer.Train, Layer.Water, Layer.Rain);
+    static readonly bool[] Layered = MakeLayered(Layer.Crickets, Layer.Underwater, Layer.Train, Layer.Water, Layer.Rain, Layer.RoofRain);
     static bool[] MakeLayered(params Layer[] ls) { var a = new bool[LayerCount]; foreach (var l in ls) a[(int)l] = true; return a; }
     const float SecondSpeed = 0.93f;
     readonly float[] posB = new float[LayerCount];
@@ -349,6 +358,18 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
     }
 
     // Keep silent layers advancing so they come back in the middle of the loop, not restarting abruptly.
+    /// <summary>
+    /// Where a layer's loop is now as a fraction (0 to 1), as heard: the audio thread runs about lagSecs ahead of the speakers.
+    /// Null when the layer has no recording or there is no audio device. Lets a picture (the pendulum) follow the sound.
+    /// </summary>
+    public float? LoopPhase(Layer l, float lagSecs)
+    {
+        var b = loops[(int)l];
+        if (output == null || b == null) return null;
+        float p = (pos[(int)l] - lagSecs * Rate) / b.Length;
+        return p - MathF.Floor(p);
+    }
+
     void Skip(Layer l)
     {
         var b = loops[(int)l]!;
@@ -358,12 +379,21 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
 
     // ---- random sound events (owl, chimes, gull, log pop, distant thunder) ----
 
-    readonly float[]?[] clips = new float[6][];
-    static readonly float[] ClipGain = { 0.4f, 0.25f, 0.18f, 0.25f, 0, 0.3f };
-    float[]? evBuf; int evPos, evStart, evEnd, evFade; float evGain; bool evAlways;
+    readonly float[]?[] clips = new float[7][];
+    static readonly float[] ClipGain = { 0.4f, 0.25f, 0.18f, 0.25f, 0, 0.3f, 0.25f };
+    float[]? evBuf; int evPos, evStart, evEnd, evFade, evFadeIn; float evGain; bool evAlways;
     volatile int evQueued = -1;
     /// <summary>Loudness of the random events relative to the loops (0 = off).</summary>
     public volatile float EventLevel = 1f;
+
+    volatile int hourStrikes = 1;
+
+    /// <summary>Ask the audio thread to strike the hour: the grandfather clock plays its first n strikes (1 to 12), then rings out.</summary>
+    public void PlayHour(int n)
+    {
+        hourStrikes = Math.Clamp(n, 1, 12);
+        evQueued = (int)Evt.Hour;
+    }
 
     /// <summary>Ask the audio thread to play a one-shot. Called from the main thread; one event plays at a time.</summary>
     public void PlayEvent(Evt e)
@@ -380,6 +410,7 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         clips[(int)Evt.Owl] = MakeOwl();
         clips[(int)Evt.Pop] = MakePop();
         clips[(int)Evt.Notify] = Peaked(Decode(Path.Combine(dir, "notify.wav")));
+        clips[(int)Evt.Hour] = Peaked(Decode(Path.Combine(dir, "clockstrike.mp3")));
     }
 
     static float[]? Peaked(float[]? a)
@@ -435,6 +466,13 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         evStart = kind == (int)Evt.Chimes && b.Length > len ? rng.Next(0, b.Length - len) : 0;
         evEnd = evStart + len; evPos = evStart; evBuf = b; evGain = ClipGain[kind];
         evFade = kind == (int)Evt.Chimes ? Rate * 2 : kind == (int)Evt.Pop ? Rate / 500 : (int)(Rate * 0.05);
+        evFadeIn = evFade;
+        if (kind == (int)Evt.Hour)
+        {
+            // The recording is a clock striking twelve, about 1.97 s apart from 0.18 s: keep the first n strikes and let the last one ring out.
+            evEnd = Math.Min(b.Length, (int)((0.18 + (hourStrikes - 1) * 1.97 + 6.5) * Rate));
+            evFade = Rate * 3; evFadeIn = Rate / 50;
+        }
         evAlways = kind == (int)Evt.Notify; // the update chime plays even with random events switched off
     }
 
@@ -444,7 +482,7 @@ public unsafe class AmbientAudio : ISampleProvider, IDisposable
         int q = evQueued;
         if (q >= 0) { evQueued = -1; StartEvent(q); }
         if (evBuf == null) return;
-        float env = MathF.Min(1f, MathF.Min((evPos - evStart) / (float)evFade, (evEnd - evPos) / (float)evFade));
+        float env = MathF.Min(1f, MathF.Min((evPos - evStart) / (float)evFadeIn, (evEnd - evPos) / (float)evFade));
         o += evBuf[evPos] * env * evGain * (evAlways ? 1f : EventLevel);
         if (++evPos >= evEnd) evBuf = null;
     }

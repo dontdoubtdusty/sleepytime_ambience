@@ -20,6 +20,13 @@ public class TrainScene : Scene
     readonly float[] lightOn = new float[26];
     float t, scroll, flick = 1;
 
+    // Curtain cloth for this launch: (light edge, dark edge) in burgundy, pine, navy or mustard.
+    static readonly (Color Lit, Color Deep)[] Curtains =
+    {
+        (C(88, 28, 36), C(60, 18, 26)), (C(40, 82, 60), C(26, 56, 40)), (C(44, 60, 108), C(28, 40, 76)), (C(150, 110, 46), C(104, 74, 30)),
+    };
+    readonly (Color Lit, Color Deep) curtain = Curtains[Launch.Pick(Curtains.Length)];
+
     public TrainScene()
     {
         for (int i = 0; i < stars.Length; i++) stars[i] = (Rf(Wx, Wx + Ww), Rf(Wy, Wy + 80), Rf(0, 6.28f));
@@ -44,6 +51,45 @@ public class TrainScene : Scene
             float top = Hill(sx + scroll * speed, baseY, a, f1, f2, ph);
             Raylib.DrawRectangle(sx, (int)top, 2, Wy + Wh - (int)top + 4, c);
         }
+    }
+
+    // Rare event: the train passes a small station at night: a lit platform with lamps, a canopy, warm windows and a clock (about 11 seconds).
+    const float StationLen = 760, StationSpeed = 96;      // moves at the speed of the telephone poles (40 px/s x 2.4)
+    protected override float RareLength => (Ww + StationLen + 60) / StationSpeed;
+
+    void DrawStation()
+    {
+        float ox = Wx + Ww + 30 - StationSpeed * RareT;
+        float floorY = Wy + 150;
+        // building behind the platform, with a canopy
+        Raylib.DrawRectangle((int)ox + 220, (int)floorY - 66, 300, 66, C(40, 34, 46));
+        Raylib.DrawRectangle((int)ox + 204, (int)floorY - 72, 332, 8, C(22, 18, 28));
+        Raylib.DrawRectangle((int)ox + 210, (int)floorY - 64, 4, 64, C(22, 18, 28));
+        Raylib.DrawRectangle((int)ox + 526, (int)floorY - 64, 4, 64, C(22, 18, 28));
+        for (int i = 0; i < 4; i++)
+        {
+            int wx = (int)ox + 236 + (i < 2 ? i * 52 : 98 + i * 52);
+            Raylib.DrawRectangle(wx, (int)floorY - 40, 24, 28, C(255, 196, 112));
+            Raylib.DrawRectangle(wx + 11, (int)floorY - 40, 2, 28, C(80, 56, 36));
+        }
+        // station clock on a bracket above the door
+        Raylib.DrawRectangle((int)ox + 369, (int)floorY - 66, 2, 8, C(22, 18, 28));
+        Clocks.DrawFace(ox + 370, floorY - 50, 10, C(22, 18, 28), C(230, 220, 196), C(30, 24, 22), null);
+        // platform: lit surface, edge and the face down to the track
+        Raylib.DrawRectangle((int)ox, (int)floorY, (int)StationLen, 22, C(60, 56, 64));
+        Raylib.DrawRectangle((int)ox, (int)floorY, (int)StationLen, 3, C(150, 138, 120));
+        Raylib.DrawRectangle((int)ox, (int)floorY + 22, (int)StationLen, 40, C(20, 18, 26));
+        // lamp posts along the platform
+        Raylib.BeginBlendMode(BlendMode.Additive);
+        for (int i = 0; i < 6; i++)
+        {
+            float lx = ox + 50 + i * 130;
+            Raylib.DrawRectangle((int)lx, (int)floorY - 46, 2, 46, C(24, 20, 28));
+            Glow(lx + 1, floorY - 48, 26, C(255, 206, 140, 80));
+            Glow(lx + 1, floorY + 2, 40, C(255, 200, 130, 22));
+        }
+        Glow(ox + 370, floorY - 50, 20, C(255, 230, 190, 40));
+        Raylib.EndBlendMode();
     }
 
     public override void Draw()
@@ -102,16 +148,17 @@ public class TrainScene : Scene
                 }
             }
         }
+        if (RareT >= 0) DrawStation();
         Raylib.EndMode2D();
         Raylib.EndScissorMode();
 
         // Curtains and frame
-        Raylib.DrawRectangleGradientH(Wx - 52, Wy - 18, 56, Wh + 56, C(88, 28, 36), C(60, 18, 26));
-        Raylib.DrawRectangleGradientH(Wx + Ww - 4, Wy - 18, 56, Wh + 56, C(60, 18, 26), C(88, 28, 36));
+        Raylib.DrawRectangleGradientH(Wx - 52, Wy - 18, 56, Wh + 56, curtain.Lit, curtain.Deep);
+        Raylib.DrawRectangleGradientH(Wx + Ww - 4, Wy - 18, 56, Wh + 56, curtain.Deep, curtain.Lit);
         for (int k = 0; k < 5; k++)
         {
-            Raylib.DrawRectangle(Wx - 48 + k * 11, Wy - 18, 2, Wh + 56, C(46, 12, 20, 140));
-            Raylib.DrawRectangle(Wx + Ww + 2 + k * 11, Wy - 18, 2, Wh + 56, C(46, 12, 20, 140));
+            Raylib.DrawRectangle(Wx - 48 + k * 11, Wy - 18, 2, Wh + 56, WithA(Shade(curtain.Deep, 0.6f), 140));
+            Raylib.DrawRectangle(Wx + Ww + 2 + k * 11, Wy - 18, 2, Wh + 56, WithA(Shade(curtain.Deep, 0.6f), 140));
         }
         Raylib.DrawRectangleLinesEx(new Rectangle(Wx - 6, Wy - 6, Ww + 12, Wh + 12), 6, C(70, 46, 30));
         Raylib.DrawRectangle(Wx - 62, Wy - 26, Ww + 124, 8, C(76, 52, 34));

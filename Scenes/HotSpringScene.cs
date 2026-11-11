@@ -22,6 +22,13 @@ public class HotSpringScene : Scene
     readonly (float x, float y)[] stars = new (float, float)[60];
     float t, steamAcc, lantern = 1, lanternTarget = 1, lanternTimer;
 
+    // Lantern light for this launch: (lit paper, glow) in amber, rose, jade or moon blue.
+    static readonly (Color Paper, Color Glow)[] Lanterns =
+    {
+        (C(255, 200, 120), C(255, 170, 80)), (C(255, 170, 150), C(255, 110, 90)), (C(190, 240, 170), C(110, 220, 140)), (C(180, 214, 255), C(110, 160, 255)),
+    };
+    readonly (Color Paper, Color Glow) lanternCol = Lanterns[Launch.Pick(Lanterns.Length)];
+
     const float PoolX = 320, PoolY = 282, PoolRx = 215, PoolRy = 46;
 
     public HotSpringScene()
@@ -68,11 +75,31 @@ public class HotSpringScene : Scene
         lantern += (lanternTarget - lantern) * Math.Min(1, dt * 4);
     }
 
+    // Rare event: a faint aurora fades in over the mountains, glows for a while, and fades away (about 90 seconds).
+    protected override float RareLength => 90;
+    void DrawAurora()
+    {
+        float lv = MathF.Min(1, RareT / 20) * MathF.Min(1, (RareLength - RareT) / 20);
+        lv = lv * lv * (3 - 2 * lv);
+        Raylib.BeginBlendMode(BlendMode.Additive);
+        for (int x = 0; x < W; x += 3)
+        {
+            float y0 = 84 + MathF.Sin(x * 0.012f + t * 0.15f) * 12;
+            float h = 48 + MathF.Sin(x * 0.02f - t * 0.2f + 1) * 18 + MathF.Sin(x * 0.05f + t * 0.3f) * 6;
+            int a = (int)(58 * lv * (0.6f + 0.4f * MathF.Sin(x * 0.03f + t * 0.4f)));
+            int top = (int)(y0 - h), mid = (int)(h * 0.6f);
+            Raylib.DrawRectangleGradientV(x, top, 3, mid, C(150, 90, 230, 0), C(90, 255, 180, a));
+            Raylib.DrawRectangleGradientV(x, top + mid, 3, (int)h - mid, C(90, 255, 180, a), C(60, 220, 160, 0));
+        }
+        Raylib.EndBlendMode();
+    }
+
     public override void Draw()
     {
         // Night sky and mountains
         Raylib.DrawRectangleGradientV(0, 0, W, 210, C(6, 10, 28), C(44, 58, 92));
         foreach (var (x, y) in stars) Raylib.DrawRectangle((int)x, (int)y, 1, 1, C(220, 230, 255, 130));
+        if (RareT >= 0) DrawAurora();
         Raylib.BeginBlendMode(BlendMode.Additive);
         Glow(470, 60, 90, C(150, 170, 210, 26));
         Raylib.EndBlendMode();
@@ -108,10 +135,10 @@ public class HotSpringScene : Scene
         {
             Raylib.DrawRectangle((int)lx - 4, 262, 8, 22, C(40, 44, 54));
             Raylib.DrawRectangle((int)lx - 9, 252, 18, 12, C(54, 58, 70));
-            Raylib.DrawRectangle((int)lx - 5, 255, 10, 7, C(255, 200, 120));
+            Raylib.DrawRectangle((int)lx - 5, 255, 10, 7, lanternCol.Paper);
             Raylib.DrawRectangle((int)lx - 11, 249, 22, 4, C(40, 44, 54));
             Raylib.BeginBlendMode(BlendMode.Additive);
-            Glow(lx, 258, 60, C(255, 170, 80, (int)(70 * lantern)));
+            Glow(lx, 258, 60, WithA(lanternCol.Glow, 70 * lantern));
             Raylib.EndBlendMode();
         }
 

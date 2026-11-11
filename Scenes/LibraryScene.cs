@@ -22,6 +22,10 @@ public class LibraryScene : Scene
     readonly List<Steam> steam = new();
     float t, steamAcc, lampFlick = 1, flash, nextFlash = 18, flashStage;
 
+    // Lamp shade cloth for this launch (amber, sage, rose, cream).
+    static readonly Color[] Shades = { C(214, 172, 100), C(150, 176, 118), C(210, 128, 120), C(226, 212, 176) };
+    readonly Color shade = Shades[Launch.Pick(Shades.Length)];
+
     public LibraryScene(AmbientAudio audio)
     {
         this.audio = audio;
@@ -85,32 +89,49 @@ public class LibraryScene : Scene
         }
     }
 
-    // An analog desk clock showing the computer's local time; the second hand ticks once a second.
+    // A small desk clock on two feet, showing the shared clock time (real or random, see Clocks).
     static void DrawDeskClock(float cx, float cy, float r)
     {
-        var now = DateTime.Now;
-        float min = now.Minute + now.Second / 60f;
-        float hr = now.Hour % 12 + min / 60f;
         Raylib.DrawRectangle((int)(cx - r * 0.7f), (int)(cy + r), (int)(r * 0.3f), 3, C(50, 34, 24));
         Raylib.DrawRectangle((int)(cx + r * 0.4f), (int)(cy + r), (int)(r * 0.3f), 3, C(50, 34, 24));
-        Raylib.DrawCircleV(new Vector2(cx, cy), r + 2.5f, C(74, 50, 34));
-        Raylib.DrawCircleV(new Vector2(cx, cy), r, C(160, 148, 126));
-        for (int i = 0; i < 12; i++)
+        Clocks.DrawFace(cx, cy, r, C(74, 50, 34), C(160, 148, 126), C(40, 30, 26), C(170, 50, 40));
+    }
+
+    // Rare event: a pale moth drifts in, circles the lamp for a while, then flutters off (about 28 seconds).
+    protected override float RareLength => 28;
+
+    protected override bool AnimalsVisible => RareT >= 0;
+    protected override void DrawAnimals() => DrawMoth();
+
+    // A soft little moth: two pairs of rounded wings that open and close, a slim body and two fine feelers.
+    void DrawMoth()
+    {
+        if (HideAnimals) return;
+        float vis = MathF.Min(1, RareT / 2.5f) * MathF.Min(1, (RareLength - RareT) / 2.5f);   // fades in and out at the edges
+        float a = RareT * 0.9f;
+        float x = 413 + MathF.Cos(a) * 30 * (1 + 0.2f * MathF.Sin(a * 0.7f));
+        float y = 258 + MathF.Sin(a * 1.3f) * 20;
+        if (Sprites.Begin(0, new Vector2(x, y), 30, 24))
         {
-            float a = i * MathF.PI / 6;
-            var d = new Vector2(MathF.Sin(a), -MathF.Cos(a));
-            float inner = i % 3 == 0 ? 0.72f : 0.84f;
-            Raylib.DrawLineEx(new Vector2(cx, cy) + d * r * inner, new Vector2(cx, cy) + d * r * 0.95f, i % 3 == 0 ? 1.5f : 1f, C(40, 30, 24));
+            float open = 0.4f + 0.6f * MathF.Abs(MathF.Sin(RareT * 7));                         // how far the wings are open
+            Color edge = C(214, 198, 168, (int)(220 * vis)), wing = C(244, 236, 214, (int)(220 * vis)), body = C(150, 124, 96, (int)(240 * vis));
+            foreach (float s in new[] { -1f, 1f })
+            {
+                Raylib.DrawEllipseV(new Vector2(x + s * (3f + 4.5f * open), y - 1.6f), 5.4f * open + 0.8f, 3.8f, edge);                // upper wing
+                Raylib.DrawEllipseV(new Vector2(x + s * (3f + 4.5f * open), y - 1.6f), 4.2f * open + 0.5f, 2.8f, wing);
+                Raylib.DrawEllipseV(new Vector2(x + s * (2.4f + 3.2f * open), y + 2.4f), 3.6f * open + 0.6f, 2.6f, edge);              // lower wing
+                Raylib.DrawLineEx(new Vector2(x + s * 0.8f, y - 3.6f), new Vector2(x + s * 3.4f, y - 7.2f), 0.7f, body);               // feeler
+            }
+            Raylib.DrawEllipseV(new Vector2(x, y + 0.4f), 1.3f, 4f, body);                                                          // body
+            Sprites.End();
         }
-        void Hand(float turns, float len, float thick, Color col)
+        // The soft light the moth carries is drawn in the normal pass only (glow cannot go into the animal's own picture).
+        if (!Sprites.Preparing)
         {
-            float a = turns * 2 * MathF.PI;
-            Raylib.DrawLineEx(new Vector2(cx, cy), new Vector2(cx + MathF.Sin(a) * r * len, cy - MathF.Cos(a) * r * len), thick, col);
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            Glow(x, y, 9, C(255, 220, 160, (int)(20 * vis)));
+            Raylib.EndBlendMode();
         }
-        Hand(hr / 12f, 0.5f, 2f, C(40, 30, 26));
-        Hand(min / 60f, 0.75f, 1.5f, C(40, 30, 26));
-        Hand(now.Second / 60f, 0.85f, 0.8f, C(170, 50, 40));
-        Raylib.DrawCircleV(new Vector2(cx, cy), 1.6f, C(40, 30, 26));
     }
 
     public override void Draw()
@@ -163,7 +184,9 @@ public class LibraryScene : Scene
         // Lamp
         Raylib.DrawRectangle(414, 262, 4, 38, C(40, 30, 22));
         Raylib.DrawRectangle(404, 296, 24, 5, C(40, 30, 22));
-        Raylib.DrawTriangle(new Vector2(411, 236), new Vector2(396, 264), new Vector2(430, 264), C(214, 172, 100));
+        Raylib.DrawTriangle(new Vector2(411, 236), new Vector2(396, 264), new Vector2(430, 264), shade);
+
+        if (RareT >= 0) DrawMoth();
 
         // Steam, light and rain-light
         Raylib.BeginBlendMode(BlendMode.Additive);

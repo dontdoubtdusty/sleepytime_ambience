@@ -1,4 +1,4 @@
-# Sleepytime Ambience QA Action Plan
+# Drowse QA Action Plan
 
 The goal: every change is small, tested, and saved, so we can always step back to the last version that worked. Section numbers stay fixed because other docs point at them (section 3 is the smoke test, section 7 the code-health check).
 
