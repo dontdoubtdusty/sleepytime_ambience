@@ -44,7 +44,7 @@ if (shotPath != null) { settings.Scene = shotScene; settings.TimerMinutes = 0; s
 
 Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.VSyncHint);
 // App version, shown in the window title; tools\make-release.ps1 reads it to name the zip.
-const string Version = "1.1";
+const string Version = "1.1.1";
 Raylib.InitWindow(1280, 720, $"Sleepytime Ambience {Version}");
 // Window and taskbar icon (the exe's own icon comes from icon.ico in the project file).
 string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "icon.png");
@@ -80,7 +80,8 @@ int lofiTime = Raylib.GetShaderLocation(lofi, "time");
 if (lofiOk) Raylib.SetShaderValue(lofi, Raylib.GetShaderLocation(lofi, "texSize"), new Vector2(Gfx.W, Gfx.H), ShaderUniformDataType.Vec2);
 
 if (shotPath == null) PreventSleep(true);
-if (settings.Fullscreen && shotPath == null) Raylib.ToggleBorderlessWindowed();
+var windowedRect = (X: 100, Y: 100, W: 1280, H: 720); // where the normal window goes back to when leaving fullscreen
+if (settings.Fullscreen && shotPath == null) ToggleFullscreen();
 
 int[] timerChoices = { 0, 15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 420, 480, 540, 600 }; // minutes, up to 10 hours
 int[] stopPresets = { 22 * 60, 23 * 60, 0, 60, 120, 180, 240, 300, 360, 420, 480, 540 }; // "stop at" clock times, evening to morning
@@ -233,10 +234,29 @@ void CycleRotate()
     settings.Save();
 }
 void ToggleLofi() { settings.Lofi = !settings.Lofi; settings.Save(); }
+// Switches between a normal window and a borderless window filling the current monitor.
+// Done by hand because raylib's ToggleBorderlessWindowed uses true fullscreen, which Windows keeps on top of everything (no alt-tab).
 void ToggleFullscreen()
 {
-    Raylib.ToggleBorderlessWindowed();
-    settings.Fullscreen = Raylib.IsWindowState(ConfigFlags.UndecoratedWindow) || Raylib.IsWindowFullscreen();
+    bool goFull = !Raylib.IsWindowState(ConfigFlags.UndecoratedWindow);
+    if (goFull)
+    {
+        if (Raylib.IsWindowMaximized()) Raylib.RestoreWindow();
+        var pos = Raylib.GetWindowPosition();
+        windowedRect = ((int)pos.X, (int)pos.Y, Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+        int m = Raylib.GetCurrentMonitor();
+        var mp = Raylib.GetMonitorPosition(m);
+        Raylib.SetWindowState(ConfigFlags.UndecoratedWindow);
+        Raylib.SetWindowPosition((int)mp.X, (int)mp.Y);
+        Raylib.SetWindowSize(Raylib.GetMonitorWidth(m), Raylib.GetMonitorHeight(m));
+    }
+    else
+    {
+        Raylib.ClearWindowState(ConfigFlags.UndecoratedWindow);
+        Raylib.SetWindowSize(windowedRect.W, windowedRect.H);
+        Raylib.SetWindowPosition(windowedRect.X, windowedRect.Y);
+    }
+    settings.Fullscreen = goFull;
     settings.Save();
 }
 
